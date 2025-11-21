@@ -1,0 +1,518 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div x-data="searchApp()" class="space-y-6">
+    <!-- Search Form -->
+    <div class="bg-white rounded-lg shadow p-6">
+        <h2 class="text-xl font-semibold mb-4">Search for Drugs</h2>
+        
+        <!-- Drug Name Search -->
+        <div class="mb-4">
+            <label for="drug-search" class="block text-sm font-medium text-gray-700 mb-2">
+                Drug Name
+            </label>
+            <div class="relative">
+                <input
+                    type="text"
+                    id="drug-search"
+                    x-model="drugQuery"
+                    @input="handleDrugInput($event)"
+                    @focus="if (suggestions.length > 0) showSuggestions = true"
+                    @blur="setTimeout(() => showSuggestions = false, 300)"
+                    placeholder="Enter drug name (minimum 3 characters)"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                
+                <!-- Autocomplete Suggestions -->
+                <div
+                    x-show="showSuggestions && suggestions.length > 0"
+                    x-cloak
+                    class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                    style="display: none;"
+                >
+                    <template x-for="suggestion in suggestions" :key="suggestion.name">
+                        <div
+                            @click="selectDrug(suggestion.name)"
+                            @mousedown.prevent
+                            class="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                        >
+                            <div class="font-medium text-gray-900" x-text="suggestion.name"></div>
+                            <div x-show="suggestion.manufacturer" class="text-sm text-gray-500" x-text="'Route: ' + suggestion.manufacturer"></div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Excipient Selection -->
+        <div class="mb-4">
+            <label class="block text-sm font-medium text-gray-700 mb-2">
+                Excipients to Exclude (Select one or more)
+            </label>
+            
+            <!-- Excipient Categories -->
+            <div class="mb-3">
+                <button
+                    type="button"
+                    @click="showCategories = !showCategories"
+                    class="text-sm text-blue-600 hover:text-blue-800"
+                >
+                    Browse by Category
+                </button>
+                
+                <div x-show="showCategories" class="mt-2 space-y-2">
+                    <template x-for="(excipients, category) in excipientCategories" :key="category">
+                        <div>
+                            <button
+                                type="button"
+                                @click="toggleCategory(category)"
+                                class="text-sm font-medium text-gray-700 hover:text-gray-900"
+                            >
+                                <span x-text="category"></span>
+                                <span class="ml-2 text-xs text-gray-500">
+                                    (<span x-text="excipients.length"></span>)
+                                </span>
+                            </button>
+                            <div class="ml-4 mt-1 space-y-1">
+                                <template x-for="exc in excipients" :key="exc">
+                                    <label class="flex items-center space-x-2">
+                                        <input
+                                            type="checkbox"
+                                            :value="exc"
+                                            x-model="selectedExcipients"
+                                            class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                        />
+                                        <span class="text-sm text-gray-700" x-text="exc"></span>
+                                    </label>
+                                </template>
+                            </div>
+                        </div>
+                    </template>
+                </div>
+            </div>
+            
+            <!-- Manual Excipient Input -->
+            <div class="mb-3">
+                <input
+                    type="text"
+                    x-model="newExcipient"
+                    @keyup.enter="addExcipient()"
+                    placeholder="Type excipient name and press Enter"
+                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                />
+                <button
+                    type="button"
+                    @click="addExcipient()"
+                    class="mt-2 px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 text-sm"
+                >
+                    Add Excipient
+                </button>
+            </div>
+            
+            <!-- Selected Excipients -->
+            <div x-show="selectedExcipients.length > 0" class="flex flex-wrap gap-2">
+                <template x-for="exc in selectedExcipients" :key="exc">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-sm bg-blue-100 text-blue-800">
+                        <span x-text="exc"></span>
+                        <button
+                            type="button"
+                            @click="removeExcipient(exc)"
+                            class="ml-2 text-blue-600 hover:text-blue-800"
+                        >
+                            ×
+                        </button>
+                    </span>
+                </template>
+            </div>
+        </div>
+        
+        <!-- Search Button -->
+        <button
+            type="button"
+            @click="performSearch()"
+            :disabled="!selectedDrug || searching"
+            class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
+        >
+            <span x-show="!searching">Search</span>
+            <span x-show="searching">Searching...</span>
+        </button>
+        <div x-show="!selectedDrug" class="mt-2 text-sm text-gray-500">
+            Please select a drug name to search
+        </div>
+    </div>
+    
+    <!-- Loading Animation -->
+    <div x-show="searching" class="bg-white rounded-lg shadow p-6 text-center mb-6" x-cloak>
+        <div class="flex flex-col items-center justify-center space-y-4">
+            <div class="relative w-16 h-16">
+                <div class="absolute top-0 left-0 w-full h-full border-4 border-blue-200 rounded-full"></div>
+                <div class="absolute top-0 left-0 w-full h-full border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+            </div>
+            <div class="text-gray-700">
+                <p class="font-medium">Searching...</p>
+                <p class="text-sm text-gray-500 mt-1" x-text="searchStatus"></p>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Results Container - Show as soon as we have any results, even while searching -->
+    <div x-show="results && (results.results_free.length > 0 || results.results_with.length > 0 || (!searching && results.metadata && results.metadata.total === 0))" class="space-y-4">
+        <!-- Results Free from Excipients -->
+        <div x-show="results && results.results_free && results.results_free.length > 0">
+            <h3 class="text-lg font-semibold text-green-700 mb-3">
+                Results Free from Selected Excipients (<span x-text="results && results.metadata ? results.metadata.total_free : 0"></span>)
+            </h3>
+            <div class="space-y-4">
+                <template x-for="result in (results && results.results_free ? results.results_free : [])" :key="result.set_id">
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <h4 class="text-xl font-semibold text-gray-900" x-text="result.title"></h4>
+                            <a
+                                :href="result.dailymed_link"
+                                target="_blank"
+                                class="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                                View on DailyMed →
+                            </a>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <span class="text-sm font-medium text-gray-600">Dosage:</span>
+                                <span class="text-sm text-gray-900" x-text="result.dosage"></span>
+                            </div>
+                            <div>
+                                <span class="text-sm font-medium text-gray-600">Drug Type:</span>
+                                <span class="text-sm text-gray-900" x-text="result.drug_type"></span>
+                            </div>
+                            <div>
+                                <span class="text-sm font-medium text-gray-600">Route:</span>
+                                <span class="text-sm text-gray-900" x-text="result.route_code_display"></span>
+                            </div>
+                            <div>
+                                <span class="text-sm font-medium text-gray-600">NDC:</span>
+                                <span class="text-sm text-gray-900" x-text="result.ndc"></span>
+                            </div>
+                            <div>
+                                <span class="text-sm font-medium text-gray-600">Packager:</span>
+                                <span class="text-sm text-gray-900" x-text="result.packager"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h5 class="text-sm font-semibold text-gray-700 mb-2">Active Ingredients:</h5>
+                            <ul class="list-disc list-inside space-y-1">
+                                <template x-for="ing in result.active" :key="ing.name">
+                                    <li class="text-sm text-gray-700">
+                                        <span x-text="ing.name"></span>
+                                        <span class="text-gray-500" x-text="'(' + ing.strength + ')'"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                        
+                        <div>
+                            <h5 class="text-sm font-semibold text-gray-700 mb-2">Inactive Ingredients:</h5>
+                            <div class="flex flex-wrap gap-2">
+                                <template x-for="ing in result.inactive" :key="ing">
+                                    <span class="text-sm text-gray-700" x-text="ing"></span>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+        
+        <!-- Results With Excipients -->
+        <div x-show="results && results.results_with && results.results_with.length > 0">
+            <h3 class="text-lg font-semibold text-yellow-700 mb-3">
+                Results Containing Selected Excipients (<span x-text="results && results.metadata ? results.metadata.total_with : 0"></span>)
+            </h3>
+            <div class="space-y-4">
+                <template x-for="result in (results && results.results_with ? results.results_with : [])" :key="result.set_id">
+                    <div class="bg-white rounded-lg shadow p-6">
+                        <div class="flex justify-between items-start mb-4">
+                            <h4 class="text-xl font-semibold text-gray-900" x-text="result.title"></h4>
+                            <a
+                                :href="result.dailymed_link"
+                                target="_blank"
+                                class="text-blue-600 hover:text-blue-800 text-sm"
+                            >
+                                View on DailyMed →
+                            </a>
+                        </div>
+                        
+                        <div class="grid grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <span class="text-sm font-medium text-gray-600">Dosage:</span>
+                                <span class="text-sm text-gray-900" x-text="result.dosage"></span>
+                            </div>
+                            <div>
+                                <span class="text-sm font-medium text-gray-600">Drug Type:</span>
+                                <span class="text-sm text-gray-900" x-text="result.drug_type"></span>
+                            </div>
+                            <div>
+                                <span class="text-sm font-medium text-gray-600">Route:</span>
+                                <span class="text-sm text-gray-900" x-text="result.route_code_display"></span>
+                            </div>
+                            <div>
+                                <span class="text-sm font-medium text-gray-600">NDC:</span>
+                                <span class="text-sm text-gray-900" x-text="result.ndc"></span>
+                            </div>
+                            <div>
+                                <span class="text-sm font-medium text-gray-600">Packager:</span>
+                                <span class="text-sm text-gray-900" x-text="result.packager"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-4">
+                            <h5 class="text-sm font-semibold text-gray-700 mb-2">Active Ingredients:</h5>
+                            <ul class="list-disc list-inside space-y-1">
+                                <template x-for="ing in result.active" :key="ing.name">
+                                    <li class="text-sm text-gray-700">
+                                        <span x-text="ing.name"></span>
+                                        <span class="text-gray-500" x-text="'(' + ing.strength + ')'"></span>
+                                    </li>
+                                </template>
+                            </ul>
+                        </div>
+                        
+                        <div>
+                            <h5 class="text-sm font-semibold text-gray-700 mb-2">Inactive Ingredients:</h5>
+                            <div class="flex flex-wrap gap-2">
+                                <template x-for="ing in result.inactive" :key="ing">
+                                    <span
+                                        class="text-sm"
+                                        :class="isHighlightedExcipient(ing) ? 'highlight-excipient' : 'text-gray-700'"
+                                        x-text="ing"
+                                    ></span>
+                                </template>
+                            </div>
+                        </div>
+                    </div>
+                </template>
+            </div>
+        </div>
+        
+        <!-- No Results -->
+        <div x-show="!searching && results && results.metadata && results.metadata.total === 0" class="bg-white rounded-lg shadow p-6 text-center">
+            <p class="text-gray-600">No results found matching your criteria.</p>
+        </div>
+    </div>
+</div>
+
+<script>
+function searchApp() {
+    return {
+        drugQuery: '',
+        selectedDrug: '',
+        suggestions: [],
+        showSuggestions: false,
+        selectedExcipients: [],
+        newExcipient: '',
+        showCategories: false,
+        results: {
+            results_free: [],
+            results_with: [],
+            metadata: { total_free: 0, total_with: 0, total: 0 },
+            excipients_highlighted: []
+        },
+        searching: false,
+        searchStatus: 'Initializing search...',
+        excipientCategories: {
+            'Sweeteners': ['Aspartame', 'Sucralose', 'Saccharin', 'Acesulfame Potassium', 'Stevia'],
+            'Preservatives': ['Sodium Benzoate', 'Potassium Sorbate', 'Methylparaben', 'Propylparaben', 'Benzyl Alcohol'],
+            'Dyes': ['FD&C Red No. 40', 'FD&C Yellow No. 6', 'FD&C Blue No. 1', 'Titanium Dioxide'],
+            'Alcohol': ['Ethanol', 'Isopropyl Alcohol', 'Benzyl Alcohol'],
+            'Lactose': ['Lactose', 'Lactose Monohydrate'],
+            'Gluten': ['Wheat Starch', 'Modified Starch'],
+            'Other Common': ['Talc', 'Magnesium Stearate', 'Silicon Dioxide', 'Cellulose'],
+        },
+        
+        async handleDrugInput(event) {
+            const query = event.target.value.trim();
+            if (query.length >= 3) {
+                try {
+                    const response = await fetch(`/api/drug-autocomplete/?q=${encodeURIComponent(query)}`);
+                    if (!response.ok) {
+                        throw new Error(`HTTP error! status: ${response.status}`);
+                    }
+                    const data = await response.json();
+                    console.log('Autocomplete suggestions received:', data);
+                    this.suggestions = data || [];
+                    this.showSuggestions = data && data.length > 0;
+                } catch (error) {
+                    console.error('Error fetching suggestions:', error);
+                    this.suggestions = [];
+                    this.showSuggestions = false;
+                }
+            } else {
+                this.suggestions = [];
+                this.showSuggestions = false;
+            }
+        },
+        
+        selectDrug(name) {
+            // Extract just the drug name (remove route if present)
+            // Format: "DRUG NAME (Route)" -> "DRUG NAME"
+            let drugName = name;
+            if (name.includes("(") && name.includes(")")) {
+                const routeStart = name.lastIndexOf("(");
+                if (routeStart > 0) {
+                    drugName = name.substring(0, routeStart).trim();
+                }
+            }
+            this.selectedDrug = drugName;
+            this.drugQuery = name; // Keep full name in display
+            this.showSuggestions = false;
+        },
+        
+        addExcipient() {
+            const exc = this.newExcipient.trim();
+            if (exc && !this.selectedExcipients.includes(exc)) {
+                this.selectedExcipients.push(exc);
+                this.newExcipient = '';
+            }
+        },
+        
+        removeExcipient(exc) {
+            this.selectedExcipients = this.selectedExcipients.filter(e => e !== exc);
+        },
+        
+        toggleCategory(category) {
+            const excipients = this.excipientCategories[category];
+            excipients.forEach(exc => {
+                if (!this.selectedExcipients.includes(exc)) {
+                    this.selectedExcipients.push(exc);
+                }
+            });
+        },
+        
+        async performSearch() {
+            if (!this.selectedDrug) {
+                alert('Please select a drug name first.');
+                return;
+            }
+            
+            // Reset results
+            this.results = {
+                results_free: [],
+                results_with: [],
+                metadata: { total_free: 0, total_with: 0, total: 0 },
+                excipients_highlighted: []
+            };
+            this.searching = true;
+            this.searchStatus = 'Initializing search...';
+            
+            try {
+                const excipientsParam = this.selectedExcipients.length > 0 ? this.selectedExcipients.join(',') : '';
+                let url = `/api/search/?drug=${encodeURIComponent(this.selectedDrug)}`;
+                if (excipientsParam) {
+                    url += `&excipients=${encodeURIComponent(excipientsParam)}`;
+                }
+                
+                const response = await fetch(url);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                // Handle streaming response
+                const reader = response.body.getReader();
+                const decoder = new TextDecoder();
+                let buffer = '';
+                
+                while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    
+                    buffer += decoder.decode(value, { stream: true });
+                    const lines = buffer.split('\n');
+                    buffer = lines.pop() || ''; // Keep incomplete line in buffer
+                    
+                    for (const line of lines) {
+                        if (!line.trim()) continue;
+                        
+                        try {
+                            const data = JSON.parse(line);
+                            
+                            if (data.type === 'init') {
+                                this.results.excipients_highlighted = data.excipients_highlighted || [];
+                                this.searchStatus = 'Searching for drugs...';
+                            } else if (data.type === 'result') {
+                                // Add result to appropriate category
+                                // Alpine.js automatically detects array mutations (push, pop, etc.)
+                                // The result will appear immediately in the DOM
+                                if (data.category === 'free') {
+                                    this.results.results_free.push(data.result);
+                                } else if (data.category === 'with') {
+                                    this.results.results_with.push(data.result);
+                                }
+                                
+                                // Update metadata - create new object to trigger reactivity
+                                if (data.metadata) {
+                                    this.results.metadata = {
+                                        total_free: data.metadata.total_free || 0,
+                                        total_with: data.metadata.total_with || 0,
+                                        total: data.metadata.total || 0
+                                    };
+                                }
+                                
+                                // Update status
+                                const total = (data.metadata?.total || 0);
+                                this.searchStatus = `Found ${total} result${total !== 1 ? 's' : ''}...`;
+                                
+                                // Log for debugging
+                                console.log(`Result added to ${data.category}:`, data.result.title);
+                            } else if (data.type === 'complete') {
+                                if (data.metadata) {
+                                    this.results.metadata = data.metadata;
+                                }
+                                this.searchStatus = `Search complete! Found ${data.metadata?.total || 0} result${(data.metadata?.total || 0) !== 1 ? 's' : ''}.`;
+                            } else if (data.type === 'error') {
+                                throw new Error(data.error || 'Unknown error occurred');
+                            }
+                        } catch (parseError) {
+                            console.error('Error parsing stream data:', parseError, 'Line:', line);
+                        }
+                    }
+                }
+                
+                // Process any remaining buffer
+                if (buffer.trim()) {
+                    try {
+                        const data = JSON.parse(buffer);
+                        if (data.type === 'complete' && data.metadata) {
+                            this.results.metadata = data.metadata;
+                        }
+                    } catch (e) {
+                        console.error('Error parsing final buffer:', e);
+                    }
+                }
+                
+            } catch (error) {
+                console.error('Error performing search:', error);
+                alert('An error occurred while searching. Please try again.');
+                this.results = {
+                    results_free: [],
+                    results_with: [],
+                    metadata: { total_free: 0, total_with: 0, total: 0 },
+                    excipients_highlighted: []
+                };
+            } finally {
+                this.searching = false;
+            }
+        },
+        
+        isHighlightedExcipient(ingredient) {
+            if (!this.results || !this.results.excipients_highlighted) return false;
+            const ingLower = ingredient.toLowerCase();
+            return this.results.excipients_highlighted.some(exc => 
+                ingLower.includes(exc.toLowerCase()) || exc.toLowerCase().includes(ingLower)
+            );
+        }
+    }
+}
+</script>
+{% endblock %}
+
