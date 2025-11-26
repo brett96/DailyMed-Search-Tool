@@ -425,6 +425,23 @@ class DailyMedAPI:
                         strength = "Strength not specified"
                     
                     active_ingredients.append({'name': name.title(), 'strength': strength})
+                
+                # Fallback: If no active ingredients found in data_section, try searching the entire document
+                if not active_ingredients:
+                    for ingredient in root.findall(".//ingredient[@classCode='ACTIB']"):
+                        name_elem = ingredient.find(".//ingredientSubstance/name")
+                        if name_elem is not None and name_elem.text:
+                            name = name_elem.text.strip()
+                            
+                            numerator_elem = ingredient.find(".//quantity/numerator")
+                            if numerator_elem is not None:
+                                value = numerator_elem.get('value', 'N/A')
+                                unit = numerator_elem.get('unit', '')
+                                strength = f"{value} {unit}".strip()
+                            else:
+                                strength = "Strength not specified"
+                            
+                            active_ingredients.append({'name': name.title(), 'strength': strength})
 
                 # Find Structured Inactive Ingredients (IACT)
                 for ingredient in data_section.findall(".//ingredient[@classCode='IACT']"):
@@ -511,7 +528,8 @@ class DailyMedAPI:
         This is a multi-step process and may be slow.
         """
         # Extract arguments from the args object
-        drug_name = args.drug_name
+        drug_name = getattr(args, 'drug_name', None)
+        rxcui = getattr(args, 'rxcui', None)
         pagesize = args.pagesize
         page = args.page
         route = args.route
@@ -522,14 +540,26 @@ class DailyMedAPI:
         include_inactive = args.include_inactive
         exclude_inactive = args.exclude_inactive
 
-        print(f"Starting advanced search for '{drug_name}' (Page {page}, processing up to {pagesize} results)...")
+        # Use rxcui if provided, otherwise use drug_name
+        search_term = rxcui if rxcui else drug_name
+        search_type = "RxCUI" if rxcui else "drug name"
+        
+        print(f"Starting advanced search for {search_type} '{search_term}' (Page {page}, processing up to {pagesize} results)...")
         print("This may take a moment as each result is fetched and parsed.")
 
         # 1. Initial search
         metadata = None
         try:
-            initial_results = self.search_spls(drug_name=drug_name, pagesize=pagesize, page=page)
-            metadata = initial_results.get("metadata") # Get metadata for pagination
+            # Use rxcui if available, otherwise use drug_name
+            if rxcui:
+                initial_results = self.search_spls(rxcui=rxcui, pagesize=pagesize, page=page)
+            elif drug_name:
+                initial_results = self.search_spls(drug_name=drug_name, pagesize=pagesize, page=page)
+            else:
+                print("Error: Either rxcui or drug_name must be provided", file=sys.stderr)
+                yield
+                return
+            metadata = initial_results.get("metadata")  # Get metadata for pagination
         except requests.exceptions.RequestException as e:
             print(f"Initial API search failed: {e}", file=sys.stderr)
             yield # Stop generation

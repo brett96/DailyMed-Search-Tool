@@ -3,6 +3,7 @@ Service layer for DailyMed API integration.
 Wraps the DailyMed API client for use in Django views.
 """
 import sys
+import re
 from typing import Dict, Any, Optional, List, Generator
 import requests
 import json
@@ -32,107 +33,326 @@ class DailyMedService:
     def __init__(self):
         self.api = DailyMedAPI()
     
-    def _create_mock_args(self, drug_name: str, page: int = 1, pagesize: int = 25):
-        """Create a mock argparse.Namespace for search_with_filters."""
+    def _create_mock_args(
+        self, 
+        drug_name: Optional[str] = None,
+        rxcui: Optional[str] = None,
+        page: int = 1, 
+        pagesize: int = 25,
+        route: Optional[str] = None,
+        form: Optional[List[str]] = None,
+        only_active: Optional[List[str]] = None,
+        include_active: Optional[List[str]] = None,
+        exclude_active: Optional[List[str]] = None,
+        include_inactive: Optional[List[str]] = None,
+        exclude_inactive: Optional[List[str]] = None
+    ):
+        """
+        Create a mock argparse.Namespace for search_with_filters.
+        
+        Args:
+            drug_name: Drug name to search for (used if rxcui not provided)
+            rxcui: RxCUI to search for (takes precedence over drug_name)
+            page: Page number
+            pagesize: Results per page
+            route: Route of administration filter
+            form: List of dosage form filters
+            only_active: List of active ingredients - results must ONLY contain these (and no others)
+            include_active: List of active ingredients that MUST be present
+            exclude_active: List of active ingredients that MUST NOT be present
+            include_inactive: List of inactive ingredients that MUST be present
+            exclude_inactive: List of inactive ingredients that MUST NOT be present
+        """
         class MockArgs:
             def __init__(self):
-                self.drug_name = drug_name
+                # Use rxcui if provided, otherwise use drug_name
+                self.drug_name = drug_name if not rxcui else None
+                self.rxcui = rxcui
                 self.page = page
                 self.pagesize = pagesize
-                self.route = None
-                self.form = None
-                self.only_active = None
-                self.include_active = None
-                self.exclude_active = None
-                self.include_inactive = None
-                self.exclude_inactive = None
+                self.route = route
+                self.form = form
+                self.only_active = only_active
+                self.include_active = include_active
+                self.exclude_active = exclude_active
+                self.include_inactive = include_inactive
+                self.exclude_inactive = exclude_inactive
         
         return MockArgs()
     
     def get_drug_autocomplete(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
         """
-        Get drug name suggestions for autocomplete using RxTerms API.
+        Get drug name suggestions using RxNorm Approximate Match API (Matches MTM Logic).
+        Uses approximateTerm for 4+ character queries, and spellingsuggestions as fallback for 3-character queries.
         
         Args:
             query: Search query (minimum 3 characters)
             limit: Maximum number of results to return
             
         Returns:
-            List of drug name dictionaries with 'name' and 'manufacturer' keys
+            List of drug dictionaries with 'label', 'value' (RxCUI), and 'metadata' keys
         """
         if len(query) < 3:
             return []
         
         try:
-            # Use RxTerms API for autocomplete
-            import requests
-            url = "https://clinicaltables.nlm.nih.gov/api/rxterms/v3/search"
+            # For 3-character queries, RxNav approximateTerm doesn't return results
+            # Use spellingsuggestions as fallback, then enrich with RxCUI data
+            if len(query) == 3:
+                return self._get_autocomplete_3chars(query, limit)
+            
+            # For 4+ character queries, use approximateTerm API (more accurate)
+            url = "https://rxnav.nlm.nih.gov/REST/approximateTerm.json"
             params = {
-                "terms": query,
-                "maxList": min(limit, 500),
-                "df": "DISPLAY_NAME",
+                "term": query,
+                "maxEntries": limit,
             }
             
             response = requests.get(url, params=params, timeout=10)
             response.raise_for_status()
-            
-            # RxTerms API returns: [total_count, [codes], {extra_fields}, [display_strings], [code_systems]]
             data = response.json()
             
-            if not isinstance(data, list) or len(data) < 4:
-                print(f"Unexpected RxTerms API response format: {data}", file=sys.stderr)
-                return []
-            
-            display_strings = data[3] if len(data) > 3 else []
-            
-            if not display_strings:
-                print(f"No display strings in RxTerms response for query '{query}'", file=sys.stderr)
-                return []
-            
-            # Extract unique drug names
-            seen_names = set()
             suggestions = []
             
-            for display_name in display_strings:
-                # Each display_name is an array with one element: [["DRUG NAME (Route)"]]
-                if isinstance(display_name, list) and len(display_name) > 0:
-                    full_name = display_name[0] if isinstance(display_name[0], str) else str(display_name[0])
-                elif isinstance(display_name, str):
-                    full_name = display_name
-                else:
-                    continue
-                
-                if not full_name or not full_name.strip():
-                    continue
-                
-                # Extract route from name if present (format: "DRUG NAME (Route)")
-                # Keep the full name for display, but extract just the drug name for matching
-                drug_name = full_name.strip()
-                route = ""
-                if "(" in drug_name and ")" in drug_name:
-                    route_start = drug_name.rfind("(")
-                    route_end = drug_name.rfind(")")
-                    if route_start < route_end:
-                        route = drug_name[route_start + 1:route_end].strip()
-                        drug_name = drug_name[:route_start].strip()
-                
-                # Use the drug name (without route) for uniqueness check
-                if drug_name.lower() not in seen_names:
-                    seen_names.add(drug_name.lower())
-                    suggestions.append({
-                        "name": full_name.strip(),  # Return full name with route for display
-                        "manufacturer": route or "",  # Using route as secondary info
-                    })
-                    
-                    if len(suggestions) >= limit:
-                        break
+            # Navigate response structure: approximateGroup -> candidate
+            group = data.get("approximateGroup", {})
+            if not group:
+                print(f"No approximateGroup in RxNav response for query '{query}'", file=sys.stderr)
+                return []
             
-            print(f"RxTerms autocomplete for '{query}': found {len(suggestions)} suggestions", file=sys.stderr)
+            candidates = group.get("candidate", [])
+            if not candidates:
+                print(f"No candidates in RxNav response for query '{query}'", file=sys.stderr)
+                return []
+            
+            # Handle both single candidate object and array
+            if isinstance(candidates, dict):
+                candidates = [candidates]
+            elif not isinstance(candidates, list):
+                candidates = []
+            
+            seen_rxcuis = set()
+            
+            for candidate in candidates:
+                if not isinstance(candidate, dict):
+                    continue
+                
+                # MTM Logic: We prefer candidates that have a synonym (specific name)
+                # In a real MTM app, we might filter by rxtty (Term Type) to ensure SBD/SCD
+                # but approximateTerm primarily returns scorable candidates.
+                
+                rxcui_raw = candidate.get("rxcui")
+                if not rxcui_raw:
+                    continue
+                
+                rxcui = str(rxcui_raw)
+                
+                # Skip duplicates by RxCUI
+                if rxcui in seen_rxcuis:
+                    continue
+                seen_rxcuis.add(rxcui)
+                
+                # Use synonym if available (usually contains "Lisinopril 10mg..."), else use name, else skip
+                label = candidate.get("synonym") or candidate.get("name")
+                
+                # Skip candidates without a label (MTM logic: filter out candidates without names)
+                if not label:
+                    continue
+                
+                # Basic parsing to attempt extraction of metadata from the string
+                # Example string: "Lisinopril 10 MG Oral Tablet"
+                metadata = self._parse_drug_string(label)
+                
+                suggestions.append({
+                    "label": label,        # Display Name
+                    "value": rxcui,        # RxCUI (Critical for searching)
+                    "metadata": metadata   # Autofill data
+                })
+                
+                if len(suggestions) >= limit:
+                    break
+            
+            print(f"RxNav autocomplete for '{query}': found {len(suggestions)} suggestions", file=sys.stderr)
             return suggestions
+            
         except Exception as e:
-            # Log error but return empty list
-            print(f"Error in drug autocomplete: {e}", file=sys.stderr)
+            print(f"Error in RxNorm autocomplete: {e}", file=sys.stderr)
+            import traceback
+            print(traceback.format_exc(), file=sys.stderr)
             return []
+    
+    def _get_autocomplete_3chars(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Fallback method for 3-character queries using RxTerms API.
+        RxNav APIs don't support 3-character queries, so we use RxTerms as a fallback.
+        
+        Args:
+            query: 3-character search query
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of drug dictionaries with 'label', 'value' (RxCUI), and 'metadata' keys
+        """
+        try:
+            # Use RxTerms API as fallback for 3-character queries
+            # RxTerms supports shorter queries better than RxNav
+            url = "https://clinicaltables.nlm.nih.gov/api/rxterms/v3/search"
+            params = {
+                "terms": query,
+                "maxList": limit,
+                "ef": "STRENGTHS_AND_FORMS,SXDG_RXCUI"  # Get strengths/forms and RxCUI
+            }
+            
+            response = requests.get(url, params=params, timeout=10)
+            response.raise_for_status()
+            data = response.json()
+            
+            # RxTerms response format: [total_count, [codes], {extra_fields}, [display_strings], [code_systems]]
+            if not isinstance(data, list) or len(data) < 4:
+                print(f"Invalid RxTerms response format for query '{query}'", file=sys.stderr)
+                return []
+            
+            total_count = data[0] if isinstance(data[0], int) else 0
+            codes = data[1] if isinstance(data[1], list) else []
+            extra_fields = data[2] if isinstance(data[2], dict) else {}
+            display_strings = data[3] if isinstance(data[3], list) else []
+            
+            if not codes or not display_strings:
+                print(f"No results from RxTerms for 3-char query '{query}'", file=sys.stderr)
+                return []
+            
+            suggestions = []
+            seen_rxcuis = set()
+            
+            # Get RxCUIs from extra_fields if available
+            rxcuis_list = extra_fields.get("SXDG_RXCUI", [])
+            
+            for i, code in enumerate(codes):
+                if i >= len(display_strings):
+                    break
+                
+                display = display_strings[i]
+                if not isinstance(display, list) or len(display) == 0:
+                    continue
+                
+                label = display[0] if display[0] else None
+                if not label:
+                    continue
+                
+                # Try to get RxCUI from extra_fields
+                rxcui = None
+                if i < len(rxcuis_list) and isinstance(rxcuis_list[i], list) and len(rxcuis_list[i]) > 0:
+                    rxcui = str(rxcuis_list[i][0])
+                elif i < len(rxcuis_list):
+                    rxcui = str(rxcuis_list[i])
+                
+                # If no RxCUI found, try to look it up using RxNav
+                if not rxcui:
+                    try:
+                        rxcui_url = "https://rxnav.nlm.nih.gov/REST/rxcui.json"
+                        rxcui_params = {"name": label, "allsrc": "0"}
+                        rxcui_response = requests.get(rxcui_url, params=rxcui_params, timeout=5)
+                        if rxcui_response.status_code == 200:
+                            rxcui_data = rxcui_response.json()
+                            id_group = rxcui_data.get("idGroup", {})
+                            rxcuis = id_group.get("rxnormId", [])
+                            if rxcuis:
+                                rxcui = str(rxcuis[0]) if isinstance(rxcuis, list) else str(rxcuis)
+                    except Exception:
+                        pass  # If lookup fails, skip this item
+                
+                if not rxcui:
+                    continue  # Skip items without RxCUI
+                
+                # Skip duplicates by RxCUI
+                if rxcui in seen_rxcuis:
+                    continue
+                seen_rxcuis.add(rxcui)
+                
+                # Parse metadata from the label string
+                metadata = self._parse_drug_string(label)
+                
+                # Try to get strengths/forms from extra_fields if available
+                strengths_forms = extra_fields.get("STRENGTHS_AND_FORMS", [])
+                if i < len(strengths_forms) and isinstance(strengths_forms[i], list) and len(strengths_forms[i]) > 0:
+                    # Use the first strength/form combination if available
+                    first_sf = strengths_forms[i][0]
+                    if first_sf and not metadata.get("strength"):
+                        # Try to extract strength from the string (e.g., "10mg Tab")
+                        strength_match = re.search(r'(\d+\.?\d*\s?(?:mg|ml|mcg|g|%|units?|iu))', first_sf, re.IGNORECASE)
+                        if strength_match:
+                            metadata["strength"] = strength_match.group(1)
+                        # Try to extract form
+                        for form in ["tablet", "capsule", "solution", "suspension", "cream", "ointment"]:
+                            if form in first_sf.lower() and not metadata.get("form"):
+                                metadata["form"] = form.title()
+                                break
+                
+                suggestions.append({
+                    "label": label,        # Display Name
+                    "value": rxcui,        # RxCUI (Critical for searching)
+                    "metadata": metadata   # Autofill data
+                })
+                
+                if len(suggestions) >= limit:
+                    break
+            
+            print(f"RxTerms fallback for 3-char query '{query}': found {len(suggestions)} suggestions", file=sys.stderr)
+            return suggestions
+            
+        except Exception as e:
+            print(f"Error in RxTerms fallback for 3-char query: {e}", file=sys.stderr)
+            import traceback
+            print(traceback.format_exc(), file=sys.stderr)
+            return []
+    
+    def _parse_drug_string(self, text: str) -> Dict[str, str]:
+        """
+        Helper to extract Strength, Route, and Form from a standard RxNorm string.
+        Naive implementation based on standard ordering: Ingredient + Strength + Route + Form
+        
+        Args:
+            text: Drug name string from RxNav (e.g., "Lisinopril 10 MG Oral Tablet")
+            
+        Returns:
+            Dictionary with 'strength', 'route', and 'form' keys
+        """
+        metadata = {"strength": "", "route": "", "form": ""}
+        
+        if not text:
+            return metadata
+        
+        # This is a heuristic parser. RxNorm strings are generally structured.
+        # Real production apps often call /rxcui/{id}/allProperties for exact details,
+        # but to save API calls (as per MTM doc), we parse the string.
+        
+        lower_text = text.lower()
+        
+        # Attempt to find Route (common routes)
+        routes = ["oral", "topical", "intravenous", "injection", "ophthalmic", 
+                  "sublingual", "intramuscular", "subcutaneous", "rectal", "vaginal",
+                  "otic", "nasal", "inhalation", "transdermal", "buccal"]
+        for r in routes:
+            if r in lower_text:
+                metadata["route"] = r.title()
+                break
+        
+        # Attempt to find Form
+        forms = ["tablet", "capsule", "solution", "suspension", "cream", "ointment", 
+                "injection", "syrup", "gel", "lotion", "spray", "drops", "patch",
+                "suppository", "film", "powder", "granules", "lozenge", "paste"]
+        for f in forms:
+            if f in lower_text:
+                metadata["form"] = f.title()
+                break
+        
+        # Attempt to find Strength (digits followed by mg, ml, %, etc)
+        # Regex looks for number followed by unit
+        match = re.search(r'(\d+\.?\d*\s?(?:mg|ml|mcg|g|%|units?|iu))', text, re.IGNORECASE)
+        if match:
+            metadata["strength"] = match.group(1)
+        
+        return metadata
     
     def search_with_excipients(
         self,
