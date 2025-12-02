@@ -8,7 +8,7 @@ from django.http import StreamingHttpResponse
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
-from .services import DailyMedService
+from .services import DailyMedService, search_rxnorm_logic
 
 
 def extract_base_drug_name(drug_name: str) -> str:
@@ -84,24 +84,43 @@ def extract_base_drug_name(drug_name: str) -> str:
 @api_view(['GET'])
 def drug_autocomplete(request):
     """
-    API endpoint for drug name autocomplete.
+    API endpoint for drug name autocomplete using RxNorm database.
     
     Query params:
-        q: Search query (minimum 3 characters)
-        limit: Maximum number of results (default: 20)
+        q: Search query (drug name or NDC)
+        limit: Maximum number of results (default: 20, max: 250)
     
     Returns:
-        JSON array of drug name suggestions
+        JSON array of drug name suggestions with format:
+        {
+            'label': Display name,
+            'value': RxCUI,
+            'metadata': {strength, form, route}
+        }
     """
     query = request.GET.get('q', '').strip()
     limit = int(request.GET.get('limit', 20))
     
-    if len(query) < 3:
+    if not query:
         return Response([], status=status.HTTP_200_OK)
     
     try:
-        service = DailyMedService()
-        suggestions = service.get_drug_autocomplete(query, limit)
+        # Use RxNorm database search logic
+        results = search_rxnorm_logic(query)
+        
+        # Limit results if needed
+        if limit > 0 and len(results) > limit:
+            results = results[:limit]
+        
+        # Format results for frontend compatibility
+        suggestions = []
+        for result in results:
+            suggestions.append({
+                'label': result.get('label', result.get('display', '')),
+                'value': result.get('value', result.get('id', '')),
+                'metadata': result.get('metadata', {})
+            })
+        
         return Response(suggestions, status=status.HTTP_200_OK)
     except Exception as e:
         import traceback
@@ -322,18 +341,28 @@ def search_drugs_stream(request):
                 if not isinstance(active, list):
                     active = []
                 
-                # Ensure each active ingredient has the expected structure
+                # Filter and ensure each active ingredient has the expected structure
+                # Remove any non-dict items and ensure all dicts have name and strength
+                valid_active = []
                 for ing in active:
                     if not isinstance(ing, dict):
-                        continue
-                    if "name" not in ing:
-                        ing["name"] = "Unknown"
-                    if "strength" not in ing:
-                        ing["strength"] = "N/A"
+                        continue  # Skip non-dict items
+                    # Ensure required fields exist and are not empty
+                    name = ing.get("name", "").strip() if ing.get("name") else ""
+                    if not name:
+                        name = "Unknown"
+                    ing["name"] = name
+                    
+                    strength = ing.get("strength", "").strip() if ing.get("strength") else ""
+                    if not strength:
+                        strength = "N/A"
+                    ing["strength"] = strength
+                    
+                    valid_active.append(ing)
                 
-                # Set active back to result to ensure it's preserved
-                result["active"] = active
-                result["dosage"] = ", ".join([f"{ing.get('name', '')} {ing.get('strength', '')}" for ing in active]) if active else "N/A"
+                # Set active back to result with only valid ingredients
+                result["active"] = valid_active
+                result["dosage"] = ", ".join([f"{ing.get('name', '')} {ing.get('strength', '')}" for ing in valid_active]) if valid_active else "N/A"
                 
                 # Add to appropriate list
                 # If we have excluded excipients, categorize for highlighting
@@ -401,8 +430,33 @@ def search_drugs_stream(request):
                     result["packager"] = "N/A"
                     result["dailymed_link"] = f"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid={result.get('set_id', '')}"
                     result["drug_type"] = result.get("form_code_display", "N/A")
+                    
+                    # Ensure active is always a list and filter out invalid items
                     active = result.get("active", [])
-                    result["dosage"] = ", ".join([f"{ing.get('name', '')} {ing.get('strength', '')}" for ing in active]) if active else "N/A"
+                    if not isinstance(active, list):
+                        active = []
+                    
+                    # Filter and ensure each active ingredient has the expected structure
+                    valid_active = []
+                    for ing in active:
+                        if not isinstance(ing, dict):
+                            continue  # Skip non-dict items
+                        # Ensure required fields exist and are not empty
+                        name = ing.get("name", "").strip() if ing.get("name") else ""
+                        if not name:
+                            name = "Unknown"
+                        ing["name"] = name
+                        
+                        strength = ing.get("strength", "").strip() if ing.get("strength") else ""
+                        if not strength:
+                            strength = "N/A"
+                        ing["strength"] = strength
+                        
+                        valid_active.append(ing)
+                    
+                    # Set active back to result with only valid ingredients
+                    result["active"] = valid_active
+                    result["dosage"] = ", ".join([f"{ing.get('name', '')} {ing.get('strength', '')}" for ing in valid_active]) if valid_active else "N/A"
                     
                     # Add to appropriate list
                     if excipients_lower and contains_excluded_excipient:

@@ -3,12 +3,12 @@
 {% block content %}
 <div x-data="searchApp()" class="space-y-6">
     <!-- Search Form -->
-    <div class="bg-white rounded-lg shadow p-6">
-        <h2 class="text-xl font-semibold mb-4">Search for Drugs</h2>
+    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
+        <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Search for Drugs</h2>
         
         <!-- Drug Name Search -->
         <div class="mb-4">
-            <label for="drug-search" class="block text-sm font-medium text-gray-700 mb-2">
+            <label for="drug-search" class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
                 Drug Name
             </label>
             <div class="relative">
@@ -19,28 +19,41 @@
                     @input="handleDrugInput($event)"
                     @focus="if (suggestions.length > 0) showSuggestions = true"
                     @blur="setTimeout(() => showSuggestions = false, 300)"
-                    placeholder="Enter drug name (minimum 3 characters)"
-                    class="w-full px-4 py-2 border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Enter drug name"
+                    class="w-full px-4 py-2 pr-10 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                 />
+                
+                <!-- Loading Spinner -->
+                <div 
+                    x-show="autocompleteLoading"
+                    x-cloak
+                    class="absolute right-3 top-1/2 transform -translate-y-1/2"
+                    style="display: none;"
+                >
+                    <svg class="animate-spin h-5 w-5 text-blue-600 dark:text-blue-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                        <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                </div>
                 
                 <!-- Autocomplete Suggestions -->
                 <div
                     x-show="showSuggestions && suggestions.length > 0"
                     x-cloak
-                    class="absolute z-50 w-full mt-1 bg-white border border-gray-300 rounded-md shadow-lg max-h-60 overflow-auto"
+                    class="absolute z-50 w-full mt-1 bg-white dark:bg-gray-800 border border-gray-300 dark:border-gray-600 rounded-md shadow-lg max-h-60 overflow-auto"
                     style="display: none;"
                 >
-                    <template x-for="suggestion in suggestions" :key="suggestion.value">
+                    <template x-for="(suggestion, index) in suggestions" :key="index">
                         <div
                             @click="selectDrug(suggestion)"
                             @mousedown.prevent
-                            class="px-4 py-2 hover:bg-blue-50 cursor-pointer border-b border-gray-100 last:border-b-0"
+                            class="px-4 py-2 hover:bg-blue-50 dark:hover:bg-gray-700 cursor-pointer border-b border-gray-100 dark:border-gray-700 last:border-b-0"
                         >
                             <!-- CHANGED: Use 'label' from new API structure -->
-                            <div class="font-medium text-gray-900" x-text="suggestion.label"></div>
+                            <div class="font-medium text-gray-900 dark:text-white" x-text="suggestion.label"></div>
                             
                             <!-- OPTIONAL: Display the detected form/strength (MTM Autofill Simulation) -->
-                            <div class="text-xs text-gray-500 flex gap-2" x-show="suggestion.metadata && (suggestion.metadata.strength || suggestion.metadata.form)">
+                            <div class="text-xs text-gray-500 dark:text-gray-400 flex gap-2" x-show="suggestion.metadata && (suggestion.metadata.strength || suggestion.metadata.form)">
                                 <span x-show="suggestion.metadata.strength" x-text="'Str: ' + suggestion.metadata.strength"></span>
                                 <span x-show="suggestion.metadata.form" x-text="'Form: ' + suggestion.metadata.form"></span>
                             </div>
@@ -53,7 +66,7 @@
         <!-- Advanced Filters -->
         <div class="mb-4 space-y-4">
             <div class="flex items-center justify-between">
-                <label class="block text-sm font-medium text-gray-700">
+                <label class="block text-sm font-medium text-gray-700 dark:text-gray-300">
                     Advanced Filters (Optional)
                 </label>
                 <button
@@ -65,16 +78,16 @@
                 </button>
             </div>
             
-            <div x-show="showAdvancedFilters" class="space-y-4 border border-gray-200 rounded-lg p-4 bg-gray-50">
+            <div x-show="showAdvancedFilters" class="space-y-4 border border-gray-200 dark:border-gray-700 rounded-lg p-4 bg-gray-50 dark:bg-gray-900">
                 <!-- Active Ingredients Filters -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
                         Active Ingredients
                     </label>
                     
                     <!-- Include Active Ingredients -->
                     <div class="mb-3">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                             Must Include (all must be present):
                         </label>
                         <div class="flex gap-2">
@@ -83,7 +96,7 @@
                                 x-model="newIncludeActive"
                                 @keyup.enter="addIncludeActive()"
                                 placeholder="e.g., Acetaminophen"
-                                class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                             />
                             <button
                                 type="button"
@@ -95,12 +108,12 @@
                         </div>
                         <div x-show="includeActive.length > 0" class="mt-2 flex flex-wrap gap-2">
                             <template x-for="ing in includeActive" :key="ing">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
                                     <span x-text="ing"></span>
                                     <button
                                         type="button"
                                         @click="removeIncludeActive(ing)"
-                                        class="ml-1 text-green-600 hover:text-green-800"
+                                        class="ml-1 text-green-600 dark:text-green-300 hover:text-green-800 dark:hover:text-green-100"
                                     >
                                         ×
                                     </button>
@@ -111,7 +124,7 @@
                     
                     <!-- Exclude Active Ingredients -->
                     <div class="mb-3">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                             Must Exclude (none can be present):
                         </label>
                         <div class="flex gap-2">
@@ -120,7 +133,7 @@
                                 x-model="newExcludeActive"
                                 @keyup.enter="addExcludeActive()"
                                 placeholder="e.g., Dextromethorphan"
-                                class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                             />
                             <button
                                 type="button"
@@ -132,12 +145,12 @@
                         </div>
                         <div x-show="excludeActive.length > 0" class="mt-2 flex flex-wrap gap-2">
                             <template x-for="ing in excludeActive" :key="ing">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200">
                                     <span x-text="ing"></span>
                                     <button
                                         type="button"
                                         @click="removeExcludeActive(ing)"
-                                        class="ml-1 text-red-600 hover:text-red-800"
+                                        class="ml-1 text-red-600 dark:text-red-300 hover:text-red-800 dark:hover:text-red-100"
                                     >
                                         ×
                                     </button>
@@ -152,9 +165,9 @@
                             <input
                                 type="checkbox"
                                 x-model="onlyActiveEnabled"
-                                class="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                class="rounded border-gray-300 dark:border-gray-600 text-blue-600 dark:text-blue-400 focus:ring-blue-500"
                             />
-                            <span class="text-sm font-medium text-gray-700">
+                            <span class="text-sm font-medium text-gray-700 dark:text-gray-200">
                                 Only Active: Results must contain ONLY the specified active ingredients (and no others)
                             </span>
                         </label>
@@ -165,7 +178,7 @@
                                     x-model="newOnlyActive"
                                     @keyup.enter="addOnlyActive()"
                                     placeholder="e.g., Diphenhydramine"
-                                    class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                    class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                                 />
                                 <button
                                     type="button"
@@ -177,12 +190,12 @@
                             </div>
                             <div x-show="onlyActive.length > 0" class="mt-2 flex flex-wrap gap-2">
                                 <template x-for="ing in onlyActive" :key="ing">
-                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-purple-100 dark:bg-purple-900 text-purple-800 dark:text-purple-200">
                                         <span x-text="ing"></span>
                                         <button
                                             type="button"
                                             @click="removeOnlyActive(ing)"
-                                            class="ml-1 text-purple-600 hover:text-purple-800"
+                                            class="ml-1 text-purple-600 dark:text-purple-300 hover:text-purple-800 dark:hover:text-purple-100"
                                         >
                                             ×
                                         </button>
@@ -195,13 +208,13 @@
                 
                 <!-- Inactive Ingredients Filters -->
                 <div>
-                    <label class="block text-sm font-semibold text-gray-700 mb-2">
+                    <label class="block text-sm font-semibold text-gray-700 dark:text-gray-200 mb-2">
                         Inactive Ingredients (Excipients)
                     </label>
                     
                     <!-- Include Inactive Ingredients -->
                     <div class="mb-3">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                             Must Include (all must be present):
                         </label>
                         <div class="flex gap-2">
@@ -210,7 +223,7 @@
                                 x-model="newIncludeInactive"
                                 @keyup.enter="addIncludeInactive()"
                                 placeholder="e.g., Aspartame"
-                                class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                             />
                             <button
                                 type="button"
@@ -222,12 +235,12 @@
                         </div>
                         <div x-show="includeInactive.length > 0" class="mt-2 flex flex-wrap gap-2">
                             <template x-for="ing in includeInactive" :key="ing">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 text-green-800">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-green-100 dark:bg-green-900 text-green-800 dark:text-green-200">
                                     <span x-text="ing"></span>
                                     <button
                                         type="button"
                                         @click="removeIncludeInactive(ing)"
-                                        class="ml-1 text-green-600 hover:text-green-800"
+                                        class="ml-1 text-green-600 dark:text-green-300 hover:text-green-800 dark:hover:text-green-100"
                                     >
                                         ×
                                     </button>
@@ -238,7 +251,7 @@
                     
                     <!-- Exclude Inactive Ingredients (Legacy - for highlighting) -->
                     <div class="mb-3">
-                        <label class="block text-xs font-medium text-gray-600 mb-1">
+                        <label class="block text-xs font-medium text-gray-600 dark:text-gray-300 mb-1">
                             Must Exclude (none can be present):
                         </label>
                         <div class="flex gap-2">
@@ -247,7 +260,7 @@
                                 x-model="newExcludeInactive"
                                 @keyup.enter="addExcludeInactive()"
                                 placeholder="e.g., Aspartame, Sucralose"
-                                class="flex-1 px-3 py-2 text-sm border border-gray-300 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                class="flex-1 px-3 py-2 text-sm border border-gray-300 dark:border-gray-600 rounded-md focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-white placeholder-gray-500 dark:placeholder-gray-400"
                             />
                             <button
                                 type="button"
@@ -259,12 +272,12 @@
                         </div>
                         <div x-show="excludeInactive.length > 0" class="mt-2 flex flex-wrap gap-2">
                             <template x-for="ing in excludeInactive" :key="ing">
-                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 text-red-800">
+                                <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200">
                                     <span x-text="ing"></span>
                                     <button
                                         type="button"
                                         @click="removeExcludeInactive(ing)"
-                                        class="ml-1 text-red-600 hover:text-red-800"
+                                        class="ml-1 text-red-600 dark:text-red-300 hover:text-red-800 dark:hover:text-red-100"
                                     >
                                         ×
                                     </button>
@@ -288,10 +301,10 @@
                                     <button
                                         type="button"
                                         @click="toggleCategoryExclude(category)"
-                                        class="text-xs font-medium text-gray-700 hover:text-gray-900"
+                                        class="text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-100"
                                     >
                                         <span x-text="category"></span>
-                                        <span class="ml-1 text-xs text-gray-500">
+                                        <span class="ml-1 text-xs text-gray-500 dark:text-gray-400">
                                             (<span x-text="excipients.length"></span>)
                                         </span>
                                     </button>
@@ -307,43 +320,42 @@
         <button
             type="button"
             @click="performSearch()"
-            :disabled="!selectedDrug || searching"
+            :disabled="!drugQuery || drugQuery.trim().length === 0 || searching"
             class="w-full px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:bg-gray-400 disabled:cursor-not-allowed"
         >
             <span x-show="!searching">Search</span>
             <span x-show="searching">Searching...</span>
         </button>
-        <div x-show="!selectedDrug" class="mt-2 text-sm text-gray-500">
-            Please select a drug name to search
-        </div>
     </div>
     
     <!-- Loading Animation -->
-    <div x-show="searching" class="bg-white rounded-lg shadow p-6 text-center mb-6" x-cloak>
+    <div x-show="searching" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center mb-6" x-cloak>
         <div class="flex flex-col items-center justify-center space-y-4">
             <div class="relative w-16 h-16">
-                <div class="absolute top-0 left-0 w-full h-full border-4 border-blue-200 rounded-full"></div>
-                <div class="absolute top-0 left-0 w-full h-full border-4 border-blue-600 rounded-full border-t-transparent animate-spin"></div>
+                <div class="absolute top-0 left-0 w-full h-full border-4 border-blue-200 dark:border-blue-800 rounded-full"></div>
+                <div class="absolute top-0 left-0 w-full h-full border-4 border-blue-600 dark:border-blue-400 rounded-full border-t-transparent animate-spin"></div>
             </div>
-            <div class="text-gray-700">
+            <div class="text-gray-700 dark:text-gray-300">
                 <p class="font-medium">Searching...</p>
-                <p class="text-sm text-gray-500 mt-1" x-text="searchStatus"></p>
+                <p class="text-sm text-gray-500 dark:text-gray-400 mt-1" x-text="searchStatus"></p>
             </div>
         </div>
     </div>
     
     <!-- Results Container - Show as soon as we have any results, even while searching -->
-    <div x-show="results && (results.results_free.length > 0 || results.results_with.length > 0 || (!searching && results.metadata && results.metadata.total === 0))" class="space-y-4">
+    <div x-show="hasResults || (!searching && results && results.metadata && results.metadata.total === 0)" class="space-y-4">
         <!-- Results Free from Excipients -->
-        <div x-show="results && results.results_free && results.results_free.length > 0">
-            <h3 class="text-lg font-semibold text-green-700 mb-3">
-                Results Matching Filters (<span x-text="results && results.metadata ? results.metadata.total_free : 0"></span>)
+        <div x-show="paginatedResultsFree.length > 0">
+            <h3 class="text-lg font-semibold text-green-700 dark:text-green-400 mb-3">
+                Showing Results Matching Filters 
+                <span x-text="((currentPage - 1) * itemsPerPage) + 1"></span>-<span x-text="Math.min(currentPage * itemsPerPage, (results && results.results_free ? results.results_free.length : 0))"></span> 
+                of <span x-text="results && results.metadata ? results.metadata.total_free : 0"></span>
             </h3>
             <div class="space-y-4">
-                <template x-for="result in (results && results.results_free ? results.results_free : [])" :key="result.set_id">
-                    <div class="bg-white rounded-lg shadow p-6">
+                <template x-for="result in paginatedResultsFree" :key="result.set_id">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                         <div class="flex justify-between items-start mb-4">
-                            <h4 class="text-xl font-semibold text-gray-900" x-text="result.title"></h4>
+                            <h4 class="text-xl font-semibold text-gray-900 dark:text-white" x-text="result.title"></h4>
                             <a
                                 :href="result.dailymed_link"
                                 target="_blank"
@@ -355,48 +367,48 @@
                         
                         <div class="grid grid-cols-2 gap-4 mb-4">
                             <div>
-                                <span class="text-sm font-medium text-gray-600">Dosage:</span>
-                                <span class="text-sm text-gray-900" x-text="result.dosage"></span>
+                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Dosage:</span>
+                                <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.dosage"></span>
                             </div>
                             <div>
-                                <span class="text-sm font-medium text-gray-600">Drug Type:</span>
-                                <span class="text-sm text-gray-900" x-text="result.drug_type"></span>
+                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Drug Type:</span>
+                                <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.drug_type"></span>
                             </div>
                             <div>
-                                <span class="text-sm font-medium text-gray-600">Route:</span>
-                                <span class="text-sm text-gray-900" x-text="result.route_code_display"></span>
+                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Route:</span>
+                                <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.route_code_display"></span>
                             </div>
                             <div>
-                                <span class="text-sm font-medium text-gray-600">NDC:</span>
-                                <span class="text-sm text-gray-900" x-text="result.ndc"></span>
+                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">NDC:</span>
+                                <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.ndc"></span>
                             </div>
                             <div>
-                                <span class="text-sm font-medium text-gray-600">Packager:</span>
-                                <span class="text-sm text-gray-900" x-text="result.packager"></span>
+                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Packager:</span>
+                                <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.packager"></span>
                             </div>
                         </div>
                         
                         <div class="mb-4">
-                            <h5 class="text-sm font-semibold text-gray-700 mb-2">
-                                Active Ingredients: <span x-show="!result.active || result.active.length === 0" class="text-gray-500 font-normal">N/A</span>
+                            <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                Active Ingredients: <span x-show="!result.active || !Array.isArray(result.active) || result.active.length === 0" class="text-gray-500 dark:text-gray-400 font-normal">N/A</span>
                             </h5>
-                            <ul x-show="result.active && result.active.length > 0" class="list-disc list-inside space-y-1">
-                                <template x-for="ing in result.active" :key="ing.name">
-                                    <li class="text-sm text-gray-700">
-                                        <span x-text="ing.name"></span>
-                                        <span class="text-gray-500" x-text="'(' + ing.strength + ')'"></span>
+                            <ul x-show="result.active && Array.isArray(result.active) && result.active.length > 0" class="list-disc list-inside space-y-1">
+                                <template x-for="(ing, index) in (result.active || [])" :key="index">
+                                    <li class="text-sm text-gray-700 dark:text-gray-300" x-show="ing && ing.name">
+                                        <span x-text="ing.name || 'Unknown'"></span>
+                                        <span class="text-gray-500 dark:text-gray-400" x-show="ing.strength" x-text="'(' + ing.strength + ')'"></span>
                                     </li>
                                 </template>
                             </ul>
                         </div>
                         
                         <div>
-                            <h5 class="text-sm font-semibold text-gray-700 mb-2">
-                                Inactive Ingredients: <span x-show="!result.inactive || result.inactive.length === 0" class="text-gray-500 font-normal">N/A</span>
+                            <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                Inactive Ingredients: <span x-show="!result.inactive || !Array.isArray(result.inactive) || result.inactive.length === 0" class="text-gray-500 dark:text-gray-400 font-normal">N/A</span>
                             </h5>
-                            <ul x-show="result.inactive && result.inactive.length > 0" class="list-disc list-inside space-y-1">
-                                <template x-for="ing in result.inactive" :key="ing">
-                                    <li class="text-sm text-gray-700" x-text="ing"></li>
+                            <ul x-show="result.inactive && Array.isArray(result.inactive) && result.inactive.length > 0" class="list-disc list-inside space-y-1">
+                                <template x-for="(ing, index) in (result.inactive || [])" :key="index">
+                                    <li class="text-sm text-gray-700 dark:text-gray-300" x-text="ing"></li>
                                 </template>
                             </ul>
                         </div>
@@ -406,15 +418,17 @@
         </div>
         
         <!-- Results With Excipients -->
-        <div x-show="results && results.results_with && results.results_with.length > 0">
-            <h3 class="text-lg font-semibold text-yellow-700 mb-3">
-                Results Containing Excluded Excipients (<span x-text="results && results.metadata ? results.metadata.total_with : 0"></span>)
+        <div x-show="paginatedResultsWith.length > 0">
+            <h3 class="text-lg font-semibold text-yellow-700 dark:text-yellow-400 mb-3">
+                Showing Results Containing Excluded Excipients 
+                <span x-text="((currentPage - 1) * itemsPerPage) + 1"></span>-<span x-text="Math.min(currentPage * itemsPerPage, (results && results.results_with ? results.results_with.length : 0))"></span> 
+                of Total <span x-text="results && results.metadata ? results.metadata.total_with : 0"></span>
             </h3>
             <div class="space-y-4">
-                <template x-for="result in (results && results.results_with ? results.results_with : [])" :key="result.set_id">
-                    <div class="bg-white rounded-lg shadow p-6">
+                <template x-for="result in paginatedResultsWith" :key="result.set_id">
+                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
                         <div class="flex justify-between items-start mb-4">
-                            <h4 class="text-xl font-semibold text-gray-900" x-text="result.title"></h4>
+                            <h4 class="text-xl font-semibold text-gray-900 dark:text-white" x-text="result.title"></h4>
                             <a
                                 :href="result.dailymed_link"
                                 target="_blank"
@@ -426,50 +440,50 @@
                         
                         <div class="grid grid-cols-2 gap-4 mb-4">
                             <div>
-                                <span class="text-sm font-medium text-gray-600">Dosage:</span>
-                                <span class="text-sm text-gray-900" x-text="result.dosage"></span>
+                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Dosage:</span>
+                                <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.dosage"></span>
                             </div>
                             <div>
-                                <span class="text-sm font-medium text-gray-600">Drug Type:</span>
-                                <span class="text-sm text-gray-900" x-text="result.drug_type"></span>
+                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Drug Type:</span>
+                                <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.drug_type"></span>
                             </div>
                             <div>
-                                <span class="text-sm font-medium text-gray-600">Route:</span>
-                                <span class="text-sm text-gray-900" x-text="result.route_code_display"></span>
+                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Route:</span>
+                                <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.route_code_display"></span>
                             </div>
                             <div>
-                                <span class="text-sm font-medium text-gray-600">NDC:</span>
-                                <span class="text-sm text-gray-900" x-text="result.ndc"></span>
+                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">NDC:</span>
+                                <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.ndc"></span>
                             </div>
                             <div>
-                                <span class="text-sm font-medium text-gray-600">Packager:</span>
-                                <span class="text-sm text-gray-900" x-text="result.packager"></span>
+                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Packager:</span>
+                                <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.packager"></span>
                             </div>
                         </div>
                         
                         <div class="mb-4">
-                            <h5 class="text-sm font-semibold text-gray-700 mb-2">
-                                Active Ingredients: <span x-show="!result.active || result.active.length === 0" class="text-gray-500 font-normal">N/A</span>
+                            <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                Active Ingredients: <span x-show="!result.active || !Array.isArray(result.active) || result.active.length === 0" class="text-gray-500 dark:text-gray-400 font-normal">N/A</span>
                             </h5>
-                            <ul x-show="result.active && result.active.length > 0" class="list-disc list-inside space-y-1">
-                                <template x-for="ing in result.active" :key="ing.name">
-                                    <li class="text-sm text-gray-700">
-                                        <span x-text="ing.name"></span>
-                                        <span class="text-gray-500" x-text="'(' + ing.strength + ')'"></span>
+                            <ul x-show="result.active && Array.isArray(result.active) && result.active.length > 0" class="list-disc list-inside space-y-1">
+                                <template x-for="(ing, index) in (result.active || [])" :key="index">
+                                    <li class="text-sm text-gray-700 dark:text-gray-300" x-show="ing && ing.name">
+                                        <span x-text="ing.name || 'Unknown'"></span>
+                                        <span class="text-gray-500 dark:text-gray-400" x-show="ing.strength" x-text="'(' + ing.strength + ')'"></span>
                                     </li>
                                 </template>
                             </ul>
                         </div>
                         
                         <div>
-                            <h5 class="text-sm font-semibold text-gray-700 mb-2">
-                                Inactive Ingredients: <span x-show="!result.inactive || result.inactive.length === 0" class="text-gray-500 font-normal">N/A</span>
+                            <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
+                                Inactive Ingredients: <span x-show="!result.inactive || !Array.isArray(result.inactive) || result.inactive.length === 0" class="text-gray-500 dark:text-gray-400 font-normal">N/A</span>
                             </h5>
-                            <ul x-show="result.inactive && result.inactive.length > 0" class="list-disc list-inside space-y-1">
-                                <template x-for="ing in result.inactive" :key="ing">
+                            <ul x-show="result.inactive && Array.isArray(result.inactive) && result.inactive.length > 0" class="list-disc list-inside space-y-1">
+                                <template x-for="(ing, index) in (result.inactive || [])" :key="index">
                                     <li 
                                         class="text-sm"
-                                        :class="isHighlightedExcipient(ing) ? 'highlight-excipient' : 'text-gray-700'"
+                                        :class="isHighlightedExcipient(ing) ? 'highlight-excipient' : 'text-gray-700 dark:text-gray-300'"
                                         x-text="ing"
                                     ></li>
                                 </template>
@@ -481,8 +495,48 @@
         </div>
         
         <!-- No Results -->
-        <div x-show="!searching && results && results.metadata && results.metadata.total === 0" class="bg-white rounded-lg shadow p-6 text-center">
-            <p class="text-gray-600">No results found matching your criteria.</p>
+        <div x-show="!searching && results && results.metadata && results.metadata.total === 0" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
+            <p class="text-gray-600 dark:text-gray-400">No results found matching your criteria.</p>
+        </div>
+        
+        <!-- Pagination Controls -->
+        <div x-show="hasResults && totalPages > 1" class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
+            <div class="flex items-center justify-between">
+                <div class="flex items-center space-x-2">
+                    <button
+                        @click="previousPage()"
+                        :disabled="currentPage === 1"
+                        class="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
+                    >
+                        Previous
+                    </button>
+                    <span class="text-sm text-gray-700 dark:text-gray-300">
+                        Page <span x-text="currentPage"></span> of <span x-text="totalPages"></span>
+                    </span>
+                    <button
+                        @click="nextPage()"
+                        :disabled="currentPage === totalPages"
+                        class="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
+                    >
+                        Next
+                    </button>
+                </div>
+                <div class="flex items-center space-x-1">
+                    <template x-for="page in Array.from({length: Math.min(5, totalPages)}, (_, i) => {
+                        let start = Math.max(1, currentPage - 2);
+                        let end = Math.min(totalPages, start + 4);
+                        if (end - start < 4) start = Math.max(1, end - 4);
+                        return start + i;
+                    }).filter(p => p >= 1 && p <= totalPages)" :key="page">
+                        <button
+                            @click="goToPage(page)"
+                            :class="page === currentPage ? 'bg-blue-600 dark:bg-blue-700 text-white' : 'bg-gray-200 dark:bg-gray-700 text-gray-700 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-gray-600'"
+                            class="px-3 py-1 rounded-md text-sm transition-colors"
+                            x-text="page"
+                        ></button>
+                    </template>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -495,6 +549,7 @@ function searchApp() {
         selectedRxcui: '',  // ADDED: Store the RxCUI
         suggestions: [],
         showSuggestions: false,
+        autocompleteLoading: false,
         showAdvancedFilters: false,
         // Active ingredient filters
         includeActive: [],
@@ -519,8 +574,12 @@ function searchApp() {
             metadata: { total_free: 0, total_with: 0, total: 0 },
             excipients_highlighted: []
         },
+        // Pagination state
+        currentPage: 1,
+        itemsPerPage: 10,
         searching: false,
         searchStatus: 'Initializing search...',
+        autocompleteTimeout: null,  // For debouncing autocomplete requests
         excipientCategories: {
             'Sweeteners': ['Aspartame', 'Sucralose', 'Saccharin', 'Acesulfame Potassium', 'Stevia'],
             'Preservatives': ['Sodium Benzoate', 'Potassium Sorbate', 'Methylparaben', 'Propylparaben', 'Benzyl Alcohol'],
@@ -533,24 +592,82 @@ function searchApp() {
         
         async handleDrugInput(event) {
             const query = event.target.value.trim();
-            if (query.length >= 3) {
-                try {
-                    const response = await fetch(`/api/drug-autocomplete/?q=${encodeURIComponent(query)}`);
-                    if (!response.ok) {
-                        throw new Error(`HTTP error! status: ${response.status}`);
+            
+            // Clear selected drug if user is typing something different
+            // This allows free text search to work when user doesn't select from autocomplete
+            if (this.selectedDrug && query !== this.selectedDrug) {
+                this.selectedDrug = '';
+                this.selectedRxcui = '';
+            }
+            
+            // Clear any existing timeout
+            if (this.autocompleteTimeout) {
+                clearTimeout(this.autocompleteTimeout);
+                this.autocompleteTimeout = null;
+            }
+            
+            // Only show suggestions when 2 or more characters are typed
+            if (query.length >= 2) {
+                // Hide suggestions while waiting for debounce
+                this.showSuggestions = false;
+                
+                // Store the current query to ensure we use the correct value in the timeout
+                const currentQuery = query;
+                
+                // Set a new timeout to debounce the API call (1 second after typing stops)
+                this.autocompleteTimeout = setTimeout(async () => {
+                    // Double-check the query hasn't changed (user might have typed more)
+                    const finalQuery = this.drugQuery.trim();
+                    
+                    // Only proceed if we still have 2+ characters and the query matches
+                    if (finalQuery.length >= 2 && finalQuery === currentQuery) {
+                        // Show loading spinner
+                        this.autocompleteLoading = true;
+                        
+                        const startTime = performance.now();
+                        try {
+                            // Add a timeout to the fetch request (max 5 seconds)
+                            const controller = new AbortController();
+                            const timeoutId = setTimeout(() => controller.abort(), 5000);
+                            
+                            const response = await fetch(`/api/drug-autocomplete/?q=${encodeURIComponent(finalQuery)}`, {
+                                signal: controller.signal
+                            });
+                            clearTimeout(timeoutId);
+                            
+                            if (!response.ok) {
+                                throw new Error(`HTTP error! status: ${response.status}`);
+                            }
+                            const data = await response.json();
+                            const endTime = performance.now();
+                            console.log(`Autocomplete suggestions received in ${(endTime - startTime).toFixed(0)}ms:`, data);
+                            this.suggestions = data || [];
+                            // Display suggestions once we have results (after 2+ characters and 1 second delay)
+                            this.showSuggestions = data && data.length > 0;
+                        } catch (error) {
+                            if (error.name === 'AbortError') {
+                                console.error('Autocomplete request timed out after 5 seconds');
+                            } else {
+                                console.error('Error fetching suggestions:', error);
+                            }
+                            this.suggestions = [];
+                            this.showSuggestions = false;
+                        } finally {
+                            // Hide loading spinner when request completes (success or error)
+                            this.autocompleteLoading = false;
+                        }
+                    } else {
+                        // Query changed, hide loading spinner
+                        this.autocompleteLoading = false;
                     }
-                    const data = await response.json();
-                    console.log('Autocomplete suggestions received:', data);
-                    this.suggestions = data || [];
-                    this.showSuggestions = data && data.length > 0;
-                } catch (error) {
-                    console.error('Error fetching suggestions:', error);
-                    this.suggestions = [];
-                    this.showSuggestions = false;
-                }
+                    // Clear the timeout reference
+                    this.autocompleteTimeout = null;
+                }, 1000);  // Wait 1 second after typing stops
             } else {
+                // Clear suggestions if less than 2 characters
                 this.suggestions = [];
                 this.showSuggestions = false;
+                this.autocompleteLoading = false;
             }
         },
         
@@ -653,36 +770,39 @@ function searchApp() {
         },
         
         async performSearch() {
-            if (!this.selectedDrug && !this.selectedRxcui) {
-                alert('Please select a drug name first.');
+            // Use drugQuery if no autocomplete suggestion was selected
+            const searchQuery = this.drugQuery.trim();
+            if (!searchQuery || searchQuery.length === 0) {
+                alert('Please enter a drug name to search.');
                 return;
             }
             
-            // Reset results
+            // Reset results and pagination
             this.results = {
                 results_free: [],
                 results_with: [],
                 metadata: { total_free: 0, total_with: 0, total: 0 },
                 excipients_highlighted: []
             };
+            this.resetPagination();
             this.searching = true;
             this.searchStatus = 'Initializing search...';
             
             try {
                 // Build URL with all filter parameters
-                // Pass both rxcui and drug - backend will try rxcui first, then fall back to drug_name
+                // If an autocomplete suggestion was selected, use RxCUI if available, otherwise use the drug name
+                // If no autocomplete was selected, use the free text from drugQuery
                 let url = '/api/search/';
                 if (this.selectedRxcui) {
+                    // Autocomplete suggestion was selected - use RxCUI
                     url += `?rxcui=${encodeURIComponent(this.selectedRxcui)}`;
                     // Also pass drug name as fallback
                     if (this.selectedDrug) {
                         url += `&drug=${encodeURIComponent(this.selectedDrug)}`;
                     }
-                } else if (this.selectedDrug) {
-                    url += `?drug=${encodeURIComponent(this.selectedDrug)}`;
                 } else {
-                    alert('Please select a drug name first.');
-                    return;
+                    // No autocomplete selected - use free text from drugQuery
+                    url += `?drug=${encodeURIComponent(searchQuery)}`;
                 }
                 
                 // Legacy excipients parameter (for highlighting only)
@@ -709,6 +829,9 @@ function searchApp() {
                 if (this.excludeInactive.length > 0) {
                     url += `&exclude-inactive=${encodeURIComponent(this.excludeInactive.join(','))}`;
                 }
+                
+                // Fetch all results (set pagesize to a high number to get all results)
+                url += `&pagesize=1000`;
                 
                 const response = await fetch(url);
                 if (!response.ok) {
@@ -740,6 +863,23 @@ function searchApp() {
                                 this.results.excipients_highlighted = [...new Set(allExcipients)]; // Remove duplicates
                                 this.searchStatus = 'Searching for drugs...';
                             } else if (data.type === 'result') {
+                                // Normalize the result to ensure active and inactive are arrays
+                                if (data.result) {
+                                    // Ensure active is an array
+                                    if (!Array.isArray(data.result.active)) {
+                                        data.result.active = [];
+                                    }
+                                    // Filter out invalid active ingredients
+                                    data.result.active = data.result.active.filter(ing => 
+                                        ing && typeof ing === 'object' && ing.name
+                                    );
+                                    
+                                    // Ensure inactive is an array
+                                    if (!Array.isArray(data.result.inactive)) {
+                                        data.result.inactive = [];
+                                    }
+                                }
+                                
                                 // Add result to appropriate category
                                 // Alpine.js automatically detects array mutations (push, pop, etc.)
                                 // The result will appear immediately in the DOM
@@ -760,15 +900,24 @@ function searchApp() {
                                 
                                 // Update status
                                 const total = (data.metadata?.total || 0);
-                                this.searchStatus = `Found ${total} result${total !== 1 ? 's' : ''}...`;
+                                const currentTotal = (this.results?.results_free?.length || 0) + (this.results?.results_with?.length || 0);
+                                this.searchStatus = `Found ${currentTotal} result${currentTotal !== 1 ? 's' : ''}...`;
                                 
                                 // Log for debugging
                                 console.log(`Result added to ${data.category}:`, data.result.title);
+                                
+                                // Reset to page 1 when first result arrives
+                                if (currentTotal === 1) {
+                                    this.currentPage = 1;
+                                }
                             } else if (data.type === 'complete') {
                                 if (data.metadata) {
                                     this.results.metadata = data.metadata;
                                 }
-                                this.searchStatus = `Search complete! Found ${data.metadata?.total || 0} result${(data.metadata?.total || 0) !== 1 ? 's' : ''}.`;
+                                const totalResults = (this.results?.results_free?.length || 0) + (this.results?.results_with?.length || 0);
+                                this.searchStatus = `Search complete! Found ${totalResults} result${totalResults !== 1 ? 's' : ''}.`;
+                                // Reset to page 1 when search completes
+                                this.currentPage = 1;
                             } else if (data.type === 'error') {
                                 throw new Error(data.error || 'Unknown error occurred');
                             }
@@ -810,6 +959,62 @@ function searchApp() {
             return this.results.excipients_highlighted.some(exc => 
                 ingLower.includes(exc.toLowerCase()) || exc.toLowerCase().includes(ingLower)
             );
+        },
+        
+        // Pagination computed properties
+        get allResults() {
+            // Combine free and with results, free first
+            const free = (this.results?.results_free || []).map(r => ({...r, category: 'free'}));
+            const withResults = (this.results?.results_with || []).map(r => ({...r, category: 'with'}));
+            return [...free, ...withResults];
+        },
+        
+        get paginatedResults() {
+            const start = (this.currentPage - 1) * this.itemsPerPage;
+            const end = start + this.itemsPerPage;
+            return this.allResults.slice(start, end);
+        },
+        
+        get paginatedResultsFree() {
+            return this.paginatedResults.filter(r => r.category === 'free');
+        },
+        
+        get paginatedResultsWith() {
+            return this.paginatedResults.filter(r => r.category === 'with');
+        },
+        
+        get totalPages() {
+            return Math.ceil(this.allResults.length / this.itemsPerPage);
+        },
+        
+        get hasResults() {
+            return (this.results?.results_free?.length > 0) || (this.results?.results_with?.length > 0);
+        },
+        
+        // Pagination methods
+        goToPage(page) {
+            if (page >= 1 && page <= this.totalPages) {
+                this.currentPage = page;
+                // Scroll to top of results
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
+        },
+        
+        nextPage() {
+            if (this.currentPage < this.totalPages) {
+                this.goToPage(this.currentPage + 1);
+            }
+        },
+        
+        previousPage() {
+            if (this.currentPage > 1) {
+                this.goToPage(this.currentPage - 1);
+            }
+        },
+        
+        // Reset pagination when new search starts
+        resetPagination() {
+            this.currentPage = 1;
         }
     }
 }

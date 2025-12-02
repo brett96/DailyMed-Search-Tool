@@ -5,15 +5,38 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>{% block title %}CercaLabs Drug Search Tool{% endblock %}</title>
     
+    <!-- Initialize dark mode BEFORE any other scripts to prevent FOUC -->
+    <script>
+        // CRITICAL: This must run immediately, before page render
+        // Default to light mode - only enable dark if explicitly set
+        (function() {
+            const darkMode = localStorage.getItem('darkMode');
+            if (darkMode !== 'true') {
+                // Force light mode - remove dark class if present
+                document.documentElement.classList.remove('dark');
+                localStorage.setItem('darkMode', 'false');
+            } else {
+                // Only add dark class if explicitly set to true
+                document.documentElement.classList.add('dark');
+            }
+        })();
+    </script>
+    
     <!-- Tailwind CSS CDN for styling -->
     <script src="https://cdn.tailwindcss.com"></script>
+    
+    <!-- Configure Tailwind to use class strategy for dark mode -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class'
+        };
+    </script>
     
     <!-- HTMX -->
     <script src="https://unpkg.com/htmx.org@1.9.10"></script>
     
     <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.x.x/dist/cdn.min.js"></script>
-    
     <style>
         .highlight-excipient {
             background-color: #fef3c7;
@@ -21,16 +44,33 @@
             border-radius: 3px;
             font-weight: 600;
         }
+        .dark .highlight-excipient {
+            background-color: #78350f;
+            color: #fef3c7;
+        }
         [x-cloak] {
             display: none !important;
         }
     </style>
 </head>
-<body class="bg-gray-50">
+<body class="bg-gray-50 dark:bg-gray-900">
     <div class="min-h-screen">
-        <header class="bg-white shadow-sm">
-            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-                <h1 class="text-2xl font-bold text-gray-900">CercaLabs Drug Search Tool</h1>
+        <header class="bg-white dark:bg-gray-800 shadow-sm">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex justify-between items-center">
+                <h1 class="text-2xl font-bold text-gray-900 dark:text-white">CercaLabs Drug Search Tool</h1>
+                <button
+                    id="darkModeToggle"
+                    onclick="toggleDarkMode()"
+                    class="p-2 rounded-lg bg-gray-200 dark:bg-gray-700 text-gray-800 dark:text-gray-200 hover:bg-gray-300 dark:hover:bg-gray-600 transition-colors"
+                    aria-label="Toggle dark mode"
+                >
+                    <svg id="sunIcon" class="w-6 h-6 hidden dark:block" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364 6.364l-.707-.707M6.343 6.343l-.707-.707m12.728 0l-.707.707M6.343 17.657l-.707.707M16 12a4 4 0 11-8 0 4 4 0 018 0z"></path>
+                    </svg>
+                    <svg id="moonIcon" class="w-6 h-6 block dark:hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.354 15.354A9 9 0 018.646 3.646 9.003 9.003 0 0012 21a9.003 9.003 0 008.354-5.646z"></path>
+                    </svg>
+                </button>
             </div>
         </header>
         
@@ -38,6 +78,25 @@
             {% block content %}{% endblock %}
         </main>
     </div>
+    
+    <script>
+        function toggleDarkMode() {
+            const html = document.documentElement;
+            const isDark = html.classList.contains('dark');
+            
+            // Toggle the dark class
+            if (isDark) {
+                html.classList.remove('dark');
+                localStorage.setItem('darkMode', 'false');
+            } else {
+                html.classList.add('dark');
+                localStorage.setItem('darkMode', 'true');
+            }
+        }
+        
+        // Ensure function is available globally
+        window.toggleDarkMode = toggleDarkMode;
+    </script>
 </body>
 </html>
 

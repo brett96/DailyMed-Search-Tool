@@ -2,7 +2,9 @@
 Django settings for dailymed_web project.
 """
 
+import os
 from pathlib import Path
+from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -17,7 +19,7 @@ SECRET_KEY = 'django-insecure-dev-key-change-in-production'
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = ['.vercel.app']
+ALLOWED_HOSTS = ['.vercel.app', '*']
 
 
 # Application definition
@@ -32,6 +34,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'corsheaders',
     'search',
+    'rxnorm',
 ]
 
 MIDDLEWARE = [
@@ -73,8 +76,21 @@ DATABASES = {
     'default': {
         'ENGINE': 'django.db.backends.sqlite3',
         'NAME': BASE_DIR / 'db.sqlite3',
+    },
+    'rxnorm': {
+        'ENGINE': 'django.db.backends.postgresql',
+        'NAME': config('RXNORM_DB_NAME', default='rxnorm'),
+        'USER': config('RXNORM_DB_USER', default='postgres'),
+        'PASSWORD': config('RXNORM_DB_PASSWORD', default=''),
+        'HOST': config('RXNORM_DB_HOST', default='mtm-1.ctomq2uaq1ps.us-west-2.rds.amazonaws.com'),
+        'PORT': config('RXNORM_DB_PORT', default=5432, cast=int),
+        'OPTIONS': {
+            'options': '-c search_path=rxnorm',
+        },
     }
 }
+
+DATABASE_ROUTERS = ['dailymed_web.db_routers.RxNormRouter']
 
 
 # Password validation
@@ -139,3 +155,15 @@ CORS_ALLOWED_ORIGINS = [
 
 CORS_ALLOW_CREDENTIALS = True
 
+
+# try:
+#     local_settings_path = os.path.join(os.path.dirname(__file__), 'local_settings.py')
+#     if os.path.exists(local_settings_path):
+#         with open(local_settings_path) as f:
+#             exec(f.read(), globals())
+#         print("Successfully loaded local_settings.py")
+        
+#     else:
+#         print("no local_settings.py found")
+# except Exception as e:
+#     print(f"Error loading local_settings.py: {e}")
