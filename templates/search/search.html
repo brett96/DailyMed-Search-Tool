@@ -343,7 +343,7 @@
     </div>
     
     <!-- Results Container - Show as soon as we have any results, even while searching -->
-    <div x-show="hasResults || (!searching && results && results.metadata && results.metadata.total === 0)" class="space-y-4">
+    <div x-show="hasSearched && (hasResults || (!searching && results && results.metadata && results.metadata.total === 0))" class="space-y-4">
         <!-- Results Free from Excipients -->
         <div x-show="paginatedResultsFree.length > 0">
             <h3 class="text-lg font-semibold text-green-700 dark:text-green-400 mb-3">
@@ -495,7 +495,7 @@
         </div>
         
         <!-- No Results -->
-        <div x-show="!searching && results && results.metadata && results.metadata.total === 0" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
+        <div x-show="hasSearched && !searching && results && results.metadata && results.metadata.total === 0" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
             <p class="text-gray-600 dark:text-gray-400">No results found matching your criteria.</p>
         </div>
         
@@ -579,6 +579,7 @@ function searchApp() {
         itemsPerPage: 10,
         searching: false,
         searchStatus: 'Initializing search...',
+        hasSearched: false,  // Track if a search has been performed
         autocompleteTimeout: null,  // For debouncing autocomplete requests
         excipientCategories: {
             'Sweeteners': ['Aspartame', 'Sucralose', 'Saccharin', 'Acesulfame Potassium', 'Stevia'],
@@ -786,6 +787,7 @@ function searchApp() {
             };
             this.resetPagination();
             this.searching = true;
+            this.hasSearched = true;  // Mark that a search has been performed
             this.searchStatus = 'Initializing search...';
             
             try {
