@@ -330,10 +330,30 @@ def search_drugs_stream(request):
                         if contains_excluded_excipient:
                             break
                 
-                # Add basic fields
-                result["ndc"] = "N/A"
-                result["packager"] = "N/A"
-                result["dailymed_link"] = f"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid={result.get('set_id', '')}"
+                # Fetch NDC and packager info from DailyMed API
+                set_id = result.get('set_id', '')
+                ndc = "N/A"
+                packager = "N/A"
+                
+                if set_id:
+                    try:
+                        # Fetch NDCs for this SPL
+                        ndc_data = service.api.get_spl_ndcs(set_id)
+                        ndcs = ndc_data.get("data", [])
+                        if ndcs:
+                            ndc = ndcs[0].get("ndc", "N/A")
+                        
+                        # Fetch packaging info for packager name
+                        packaging_data = service.api.get_spl_packaging(set_id)
+                        packaging = packaging_data.get("data", [])
+                        if packaging:
+                            packager = packaging[0].get("labeler_name", "N/A")
+                    except Exception as e:
+                        print(f"Error fetching NDC/packager for {set_id}: {e}", file=sys.stderr)
+                
+                result["ndc"] = ndc
+                result["packager"] = packager
+                result["dailymed_link"] = f"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid={set_id}"
                 result["drug_type"] = result.get("form_code_display", "N/A")
                 
                 # Ensure active is always a list
@@ -425,10 +445,30 @@ def search_drugs_stream(request):
                             if contains_excluded_excipient:
                                 break
                     
-                    # Add basic fields
-                    result["ndc"] = "N/A"
-                    result["packager"] = "N/A"
-                    result["dailymed_link"] = f"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid={result.get('set_id', '')}"
+                    # Fetch NDC and packager info from DailyMed API
+                    set_id = result.get('set_id', '')
+                    ndc = "N/A"
+                    packager = "N/A"
+                    
+                    if set_id:
+                        try:
+                            # Fetch NDCs for this SPL
+                            ndc_data = service.api.get_spl_ndcs(set_id)
+                            ndcs = ndc_data.get("data", [])
+                            if ndcs:
+                                ndc = ndcs[0].get("ndc", "N/A")
+                            
+                            # Fetch packaging info for packager name
+                            packaging_data = service.api.get_spl_packaging(set_id)
+                            packaging = packaging_data.get("data", [])
+                            if packaging:
+                                packager = packaging[0].get("labeler_name", "N/A")
+                        except Exception as e:
+                            print(f"Error fetching NDC/packager for {set_id}: {e}", file=sys.stderr)
+                    
+                    result["ndc"] = ndc
+                    result["packager"] = packager
+                    result["dailymed_link"] = f"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid={set_id}"
                     result["drug_type"] = result.get("form_code_display", "N/A")
                     
                     # Ensure active is always a list and filter out invalid items
