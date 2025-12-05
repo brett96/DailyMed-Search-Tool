@@ -423,9 +423,23 @@ class DailyMedAPI:
                                 # Try to construct from active ingredients
                                 active_names = []
                                 for ingredient in data_section.findall(".//ingredient[@classCode='ACTIB']"):
+                                    # Try multiple methods to get name
+                                    name = None
                                     name_elem = ingredient.find(".//ingredientSubstance/name")
                                     if name_elem is not None and name_elem.text:
-                                        active_names.append(name_elem.text.strip())
+                                        name = name_elem.text.strip()
+                                    if not name:
+                                        active_moiety = ingredient.find(".//activeMoiety/activeMoiety/name")
+                                        if active_moiety is not None and active_moiety.text:
+                                            name = active_moiety.text.strip()
+                                    if not name:
+                                        code_elem = ingredient.find(".//ingredientSubstance/code")
+                                        if code_elem is not None:
+                                            name = code_elem.get("displayName")
+                                            if name:
+                                                name = name.strip()
+                                    if name:
+                                        active_names.append(name)
                                 if active_names:
                                     title_text = " / ".join(active_names)
                         else:
@@ -438,6 +452,114 @@ class DailyMedAPI:
             
             parsed_data["title"] = title_text if title_text else "N/A"
             
+            # --- HELPER FUNCTIONS FOR INGREDIENT EXTRACTION ---
+            def extract_ingredient_info(ingredient):
+                """Extract name and strength from an active ingredient element"""
+                name = None
+                strength = "Strength not specified"
+
+                # 1. Try standard ingredientSubstance/name
+                name_elem = ingredient.find(".//ingredientSubstance/name")
+                if name_elem is not None and name_elem.text:
+                    name = name_elem.text.strip()
+                
+                # 2. Try activeMoiety (Common in generic drugs like Duloxetine)
+                if not name:
+                    # Try multiple activeMoiety paths
+                    for path in [".//activeMoiety/activeMoiety/name", ".//activeMoiety/name", ".//activeIngredient/name"]:
+                        active_moiety = ingredient.find(path)
+                        if active_moiety is not None and active_moiety.text:
+                            name = active_moiety.text.strip()
+                            break
+                
+                # 3. Try displayName attribute on code elements
+                if not name:
+                    for code_path in [".//ingredientSubstance/code", ".//code", ".//activeIngredientSubstance/code"]:
+                        code_elem = ingredient.find(code_path)
+                        if code_elem is not None:
+                            disp_name = code_elem.get("displayName")
+                            if disp_name:
+                                name = disp_name.strip()
+                                break
+                
+                # 4. Try name element directly under ingredient
+                if not name:
+                    direct_name = ingredient.find("./name")
+                    if direct_name is not None and direct_name.text:
+                        name = direct_name.text.strip()
+
+                # Extract Strength from multiple possible locations
+                numerator = ingredient.find(".//quantity/numerator")
+                if numerator is None:
+                    numerator = ingredient.find(".//numerator")
+                
+                denominator = ingredient.find(".//quantity/denominator")
+                if denominator is None:
+                    denominator = ingredient.find(".//denominator")
+                
+                if numerator is not None:
+                    val = numerator.get('value', '')
+                    unit = numerator.get('unit', '')
+                    strength = f"{val} {unit}".strip()
+                    
+                    # Add denominator if useful (e.g., 5mg / 5mL)
+                    if denominator is not None:
+                        den_val = denominator.get('value', '1')
+                        den_unit = denominator.get('unit', '')
+                        # Only add denominator if it provides meaningful information
+                        # Skip if it's just "1" with no real unit (or unit is also "1")
+                        if den_val != '1' or (den_unit and den_unit != '1'):
+                            strength += f" / {den_val} {den_unit}".strip()
+                
+                return name, strength
+
+            def extract_inactive_name(ingredient):
+                """Extract name from inactive ingredient element"""
+                # Check ingredientSubstance name
+                name_elem = ingredient.find(".//ingredientSubstance/name")
+                if name_elem is not None and name_elem.text:
+                    return name_elem.text.strip().upper()
+                
+                # Check inactiveIngredientSubstance name
+                name_elem = ingredient.find(".//inactiveIngredientSubstance/name")
+                if name_elem is not None and name_elem.text:
+                    return name_elem.text.strip().upper()
+                
+                # Check code displayName as fallback
+                for code_path in [".//ingredientSubstance/code", ".//code", ".//inactiveIngredientSubstance/code"]:
+                    code_elem = ingredient.find(code_path)
+                    if code_elem is not None:
+                        disp = code_elem.get("displayName")
+                        if disp:
+                            return disp.strip().upper()
+                
+                # Check name directly under ingredient
+                name_elem = ingredient.find("./name")
+                if name_elem is not None and name_elem.text:
+                    return name_elem.text.strip().upper()
+                
+                return None
+
+            def search_ingredients_in_element(search_root, active_ingredients_list, inactive_ingredients_set):
+                """Search for active and inactive ingredients in an XML element"""
+                # Search for all active ingredient class codes:
+                # ACTIB - Active Ingredient Basis of Strength (most common)
+                # ACTI - Active Ingredient
+                # ACTIM - Active Ingredient Manufactured Item (common in generics like Duloxetine)
+                # ACTIR - Active Ingredient Reference
+                for class_code in ['ACTIB', 'ACTI', 'ACTIM', 'ACTIR']:
+                    for ingredient in search_root.findall(f".//ingredient[@classCode='{class_code}']"):
+                        name, strength = extract_ingredient_info(ingredient)
+                        if name:
+                            active_ingredients_list.append({'name': name.title(), 'strength': strength})
+                
+                # Search for IACT (Inactive Ingredient)
+                for ingredient in search_root.findall(".//ingredient[@classCode='IACT']"):
+                    name = extract_inactive_name(ingredient)
+                    if name:
+                        inactive_ingredients_set.add(name)
+            # --- END HELPER FUNCTIONS ---
+
             if data_section is not None:
                 # Find Form Code
                 form_code_elem = data_section.find(".//manufacturedProduct/formCode")
@@ -449,48 +571,50 @@ class DailyMedAPI:
                 if route_code_elem is not None:
                     parsed_data["route_code_display"] = route_code_elem.get("displayName", "N/A")
                 
-                # Find Structured Active Ingredients (ACTIB)
-                for ingredient in data_section.findall(".//ingredient[@classCode='ACTIB']"):
-                    name_elem = ingredient.find(".//ingredientSubstance/name")
-                    name = name_elem.text if name_elem is not None else "Unknown"
-                    
-                    numerator_elem = ingredient.find(".//quantity/numerator")
-                    if numerator_elem is not None:
-                        value = numerator_elem.get('value', 'N/A')
-                        unit = numerator_elem.get('unit', '')
-                        strength = f"{value} {unit}".strip()
-                    else:
-                        strength = "Strength not specified"
-                    
-                    active_ingredients.append({'name': name.title(), 'strength': strength})
+                # --- ACTIVE INGREDIENT PARSING START ---
+                # Search in data_section first
+                search_ingredients_in_element(data_section, active_ingredients, inactive_ingredients_structured)
                 
-                # Fallback: If no active ingredients found in data_section, try searching the entire document
+                # Fallback: Search entire document if nothing found in data_section
                 if not active_ingredients:
-                    for ingredient in root.findall(".//ingredient[@classCode='ACTIB']"):
-                        name_elem = ingredient.find(".//ingredientSubstance/name")
-                        if name_elem is not None and name_elem.text:
-                            name = name_elem.text.strip()
-                            
-                            numerator_elem = ingredient.find(".//quantity/numerator")
-                            if numerator_elem is not None:
-                                value = numerator_elem.get('value', 'N/A')
-                                unit = numerator_elem.get('unit', '')
-                                strength = f"{value} {unit}".strip()
-                            else:
-                                strength = "Strength not specified"
-                            
-                            active_ingredients.append({'name': name.title(), 'strength': strength})
-
-                # Find Structured Inactive Ingredients (IACT)
-                for ingredient in data_section.findall(".//ingredient[@classCode='IACT']"):
-                    name_elem = ingredient.find(".//ingredientSubstance/name")
-                    if name_elem is not None:
-                        inactive_ingredients_structured.add(name_elem.text.strip().upper())
+                    search_ingredients_in_element(root, active_ingredients, inactive_ingredients_structured)
+                
+                # Additional fallback: Look for asContent/containerPackagedProduct structure
+                if not active_ingredients:
+                    for content in root.findall(".//asContent"):
+                        search_ingredients_in_element(content, active_ingredients, inactive_ingredients_structured)
+                
+                # Final fallback: Search for any subjectOf/substanceAdministration with active ingredients
+                if not active_ingredients:
+                    for subst_admin in root.findall(".//subjectOf/substanceAdministration"):
+                        search_ingredients_in_element(subst_admin, active_ingredients, inactive_ingredients_structured)
+                # --- ACTIVE INGREDIENT PARSING END ---
+            else:
+                # No data_section found, search the entire document
+                # Try to find Form Code and Route Code from root
+                form_code_elem = root.find(".//manufacturedProduct/formCode")
+                if form_code_elem is not None:
+                    parsed_data["form_code_display"] = form_code_elem.get("displayName", "N/A")
+                
+                route_code_elem = root.find(".//substanceAdministration/routeCode")
+                if route_code_elem is not None:
+                    parsed_data["route_code_display"] = route_code_elem.get("displayName", "N/A")
+                
+                # Search entire document for ingredients
+                search_ingredients_in_element(root, active_ingredients, inactive_ingredients_structured)
+                
+                # Additional fallback paths
+                if not active_ingredients:
+                    for content in root.findall(".//asContent"):
+                        search_ingredients_in_element(content, active_ingredients, inactive_ingredients_structured)
+                
+                if not active_ingredients:
+                    for subst_admin in root.findall(".//subjectOf/substanceAdministration"):
+                        search_ingredients_in_element(subst_admin, active_ingredients, inactive_ingredients_structured)
             
             # Find Human-Readable Inactive Ingredients (Fallback)
             if inactive_section is not None:
                 para_texts = []
-                # Find text inside all paragraphs and their children (like <content>)
                 for para in inactive_section.findall(".//paragraph"):
                     text = "".join(para.itertext()).strip()
                     if text:
@@ -498,21 +622,19 @@ class DailyMedAPI:
                 
                 if para_texts:
                     full_text = " ".join(para_texts).lower()
-                    if full_text.startswith("inactive ingredients"):
-                        full_text = full_text[len("inactive ingredients"):].strip()
+                    # Clean up common prefixes
+                    prefixes = ["inactive ingredients", "inactive ingredients:", "inactive ingredient"]
+                    for p in prefixes:
+                        if full_text.startswith(p):
+                            full_text = full_text[len(p):].strip()
                     full_text = full_text.strip(".: ")
                     
                     ingredients_list = full_text.split(',')
                     for item in ingredients_list:
                         clean_item = item.strip().upper()
-                        if clean_item:
-                            if " AND " in clean_item:
-                                sub_items = clean_item.split(" AND ")
-                                for sub in sub_items:
-                                    if sub.strip():
-                                        inactive_ingredients_text.add(sub.strip())
-                            else:
-                                inactive_ingredients_text.add(clean_item)
+                        # Basic cleanup of common noise words
+                        if clean_item and "CONTAINS" not in clean_item:
+                            inactive_ingredients_text.add(clean_item)
 
             # Combine and title-case ingredients
             parsed_data["active"] = active_ingredients
@@ -525,7 +647,9 @@ class DailyMedAPI:
             print(f"Failed to parse XML: {e}", file=sys.stderr)
             return None
         except Exception as e:
+            import traceback
             print(f"An unexpected error occurred during XML parsing: {e}", file=sys.stderr)
+            traceback.print_exc()
             return None
 
 
@@ -562,135 +686,141 @@ class DailyMedAPI:
         args: argparse.Namespace
     ) -> Generator[Dict[str, Any], None, None]:
         """
-        Performs a basic search, then applies advanced filters by fetching each SPL.
-        This is a multi-step process and may be slow.
+        Performs a search across ALL pages, extracting and filtering results.
         """
-        # Extract arguments from the args object
+        # Extract arguments
         drug_name = getattr(args, 'drug_name', None)
         rxcui = getattr(args, 'rxcui', None)
-        pagesize = args.pagesize
-        page = args.page
+        
+        # Max results per request (API usually limits this to 100 regardless of what we ask for)
+        # We will loop until we have everything.
+        request_pagesize = 100 
+        
+        # Start at page 1 (or user defined page, though usually user wants all for filtering)
+        current_page = args.page
+        
         route = args.route
-        form = args.form # NEW
+        form = args.form
         only_active = args.only_active
         include_active = args.include_active
         exclude_active = args.exclude_active
         include_inactive = args.include_inactive
         exclude_inactive = args.exclude_inactive
 
-        # Use rxcui if provided, otherwise use drug_name
         search_term = rxcui if rxcui else drug_name
         search_type = "RxCUI" if rxcui else "drug name"
         
-        print(f"Starting advanced search for {search_type} '{search_term}' (Page {page}, processing up to {pagesize} results)...")
-        print("This may take a moment as each result is fetched and parsed.")
+        print(f"Starting advanced search for {search_type} '{search_term}'...")
 
-        # 1. Initial search
-        metadata = None
-        try:
-            # Use rxcui if available, otherwise use drug_name
-            if rxcui:
-                initial_results = self.search_spls(rxcui=rxcui, pagesize=pagesize, page=page)
-            elif drug_name:
-                initial_results = self.search_spls(drug_name=drug_name, pagesize=pagesize, page=page)
-            else:
-                print("Error: Either rxcui or drug_name must be provided", file=sys.stderr)
-                yield
-                return
-            metadata = initial_results.get("metadata")  # Get metadata for pagination
-        except requests.exceptions.RequestException as e:
-            print(f"Initial API search failed: {e}", file=sys.stderr)
-            yield # Stop generation
-            return # Exit function
-
-        data_results = initial_results.get("data")
-        
-        if not data_results:
-            print("No initial results found.")
-            yield # Stop generation
-            return # Exit function
-
-        # 2. Prepare filter keywords (convert to lowercase sets for comparison)
+        # Prepare filter sets
         route_filter = route.lower() if route else None
-        form_filter = {k.lower() for k in form} if form else set() # NEW
+        form_filter = {k.lower() for k in form} if form else set()
         only_act_filts = {k.lower() for k in only_active} if only_active else set()
         inc_act = {k.lower() for k in include_active} if include_active else set()
         exc_act = {k.lower() for k in exclude_active} if exclude_active else set()
         inc_inact = {k.lower() for k in include_inactive} if include_inactive else set()
         exc_inact = {k.lower() for k in exclude_inactive} if exclude_inactive else set()
 
-        # 3. Iterate, fetch, parse, and filter
-        count = 0
-        for i, item in enumerate(data_results): # Use data_results here
-            
-            # The API returns "setid", not "set_id" in the search-spls response
-            set_id = item.get("setid") 
-            
-            if not set_id:
-                continue
-            
+        total_processed = 0
+        total_matched = 0
+
+        # --- PAGINATION LOOP ---
+        while True:
             try:
-                xml_string = self._make_request(f"spls/{set_id}.xml", params=None)
-                if not isinstance(xml_string, str):
-                    continue
+                # Fetch a page of results
+                if rxcui:
+                    response = self.search_spls(rxcui=rxcui, pagesize=request_pagesize, page=current_page)
+                elif drug_name:
+                    response = self.search_spls(drug_name=drug_name, pagesize=request_pagesize, page=current_page)
+                else:
+                    break # Should not happen based on calling code
                 
-                parsed_data = self._parse_spl_xml(xml_string)
-                if not parsed_data:
-                    continue
+                data_results = response.get("data", [])
+                metadata = response.get("metadata", {})
                 
-                # --- Filtering Logic ---
+                if not data_results:
+                    break # No more results
+
+                # Process this batch
+                for item in data_results:
+                    set_id = item.get("setid")
+                    if not set_id:
+                        continue
+                    
+                    try:
+                        # Fetch and parse XML
+                        xml_string = self._make_request(f"spls/{set_id}.xml", params=None)
+                        if not isinstance(xml_string, str):
+                            continue
+                        
+                        parsed_data = self._parse_spl_xml(xml_string)
+                        if not parsed_data:
+                            continue
+                        
+                        # --- Filtering Logic ---
+                        
+                        # Check Route
+                        if route_filter:
+                            parsed_route = parsed_data.get("route_code_display", "").lower()
+                            if route_filter not in parsed_route:
+                                continue
+
+                        # Check Form
+                        if form_filter:
+                            parsed_form = parsed_data.get("form_code_display", "").lower()
+                            if not any(filt in parsed_form for filt in form_filter):
+                                continue
+
+                        # Prepare lowercase ingredient lists
+                        active_list_lower = {ing["name"].lower() for ing in parsed_data["active"]}
+                        inactive_list_lower = {ing.lower() for ing in parsed_data["inactive"]}
+                        
+                        # Check Include Active
+                        if inc_act and not all(any(filt in active for active in active_list_lower) for filt in inc_act):
+                            continue
+                        
+                        # Check Exclude Active
+                        if exc_act and any(any(filt in active for active in active_list_lower) for filt in exc_act):
+                            continue
+
+                        # Check Include Inactive
+                        if inc_inact and not all(any(filt in inactive for inactive in inactive_list_lower) for filt in inc_inact):
+                            continue
+
+                        # Check Exclude Inactive
+                        if exc_inact and any(any(filt in inactive for inactive in inactive_list_lower) for filt in exc_inact):
+                            continue
+                        
+                        # Check Only Active
+                        if only_act_filts and not all(any(filt in ing for filt in only_act_filts) for ing in active_list_lower):
+                            continue 
+
+                        # Yield match
+                        total_matched += 1
+                        yield parsed_data
+
+                    except Exception as e:
+                        print(f"    [ERROR] Failed to process SET ID {set_id}: {e}", file=sys.stderr)
+                        continue
                 
-                # Check Route
-                parsed_route = parsed_data["route_code_display"].lower()
-                if route_filter and route_filter not in parsed_route:
-                    continue
-
-                # Check Form (NEW)
-                # We check if *any* of the filter keywords are in the form string
-                parsed_form = parsed_data["form_code_display"].lower()
-                if form_filter and not any(filt in parsed_form for filt in form_filter):
-                    continue
-
-                # Prepare lowercase ingredient lists from parsed data
-                active_list_lower = {ing["name"].lower() for ing in parsed_data["active"]}
-                inactive_list_lower = {ing.lower() for ing in parsed_data["inactive"]}
+                total_processed += len(data_results)
                 
-                # Check Include Active
-                # We must match ALL keywords in the include list
-                if inc_act and not all(any(filt in active for active in active_list_lower) for filt in inc_act):
-                    continue
+                # Check pagination
+                total_pages = int(metadata.get("total_pages", 0))
+                current_page_num = int(metadata.get("current_page", current_page))
                 
-                # Check Exclude Active
-                # We fail if ANY excluded keyword is found
-                if exc_act and any(any(filt in active for active in active_list_lower) for filt in exc_act):
-                    continue
-
-                # Check Include Inactive
-                if inc_inact and not all(any(filt in inactive for inactive in inactive_list_lower) for filt in inc_inact):
-                    continue
-
-                # Check Exclude Inactive
-                if exc_inact and any(any(filt in inactive for inactive in inactive_list_lower) for filt in exc_inact):
-                    continue
+                print(f"Processed page {current_page_num} of {total_pages}", file=sys.stderr)
                 
-                # Check Only Active
-                # Ensures ALL active ingredients found match at least ONE of the provided keywords
-                if only_act_filts and not all(any(filt in ing for filt in only_act_filts) for ing in active_list_lower):
-                    continue # Skip, as it contains an "un-approved" active ingredient
+                if current_page_num >= total_pages:
+                    break # Reached the end
+                
+                current_page += 1 # Move to next page
 
-                # --- If it passes all filters, yield it ---
-                count += 1
-                yield parsed_data
-
-            except Exception as e:
-                print(f"    [ERROR] Failed to process SET ID {set_id}: {e}", file=sys.stderr)
-                continue
+            except requests.exceptions.RequestException as e:
+                print(f"API search failed on page {current_page}: {e}", file=sys.stderr)
+                break
         
-        print(f"\nAdvanced search complete. Found {count} matching items.")
-        
-        # Now print pagination info if available
-        if metadata:
-            print_pagination_info(args, metadata)
+        print(f"\nSearch complete. Processed {total_processed} items, found {total_matched} matches.")
 
 
 def pretty_print_json(data: Dict[str, Any]):
