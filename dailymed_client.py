@@ -326,6 +326,8 @@ class DailyMedAPI:
                 "title": "N/A",
                 "form_code_display": "N/A",
                 "route_code_display": "N/A",
+                "labeler": "N/A",
+                "ndc": "N/A",
                 "active": [],
                 "inactive": []
             }
@@ -334,6 +336,42 @@ class DailyMedAPI:
             set_id_elem = root.find(".//setId")
             if set_id_elem is not None:
                 parsed_data["set_id"] = set_id_elem.get("root")
+
+            # Extract Labeler (Packager) - Look for the represented organization name in the author section
+            labeler_elem = root.find(".//author/assignedEntity/representedOrganization/name")
+            if labeler_elem is not None and labeler_elem.text:
+                parsed_data["labeler"] = labeler_elem.text.strip()
+            else:
+                # Fallback: try alternative paths for labeler
+                labeler_elem = root.find(".//author/assignedEntity/representedOrganization/name")
+                if labeler_elem is None:
+                    # Try another common path
+                    for org_elem in root.findall(".//representedOrganization"):
+                        name_elem = org_elem.find("./name")
+                        if name_elem is not None and name_elem.text:
+                            parsed_data["labeler"] = name_elem.text.strip()
+                            break
+
+            # Extract NDC - Look for the product code with the NDC OID (2.16.840.1.113883.6.69)
+            # This is typically in manufacturedProduct -> manufacturedProduct -> code
+            for code_elem in root.findall(".//manufacturedProduct/manufacturedProduct/code"):
+                if code_elem.get("codeSystem") == "2.16.840.1.113883.6.69":
+                    parsed_data["ndc"] = code_elem.get("code")
+                    break
+            
+            # Fallback for NDC: check if it's in the containerPackagedProduct if not found above
+            if parsed_data["ndc"] == "N/A":
+                for code_elem in root.findall(".//containerPackagedProduct/code"):
+                    if code_elem.get("codeSystem") == "2.16.840.1.113883.6.69":
+                        parsed_data["ndc"] = code_elem.get("code")
+                        break
+            
+            # Additional fallback: search more broadly for NDC codes
+            if parsed_data["ndc"] == "N/A":
+                for code_elem in root.findall(".//code"):
+                    if code_elem.get("codeSystem") == "2.16.840.1.113883.6.69":
+                        parsed_data["ndc"] = code_elem.get("code")
+                        break
 
             active_ingredients = []
             inactive_ingredients_structured = set()
