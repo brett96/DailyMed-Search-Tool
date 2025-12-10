@@ -343,13 +343,13 @@
     </div>
     
     <!-- Results Container - Show as soon as we have any results, even while searching -->
-    <div x-show="hasSearched && (hasResults || (!searching && results && results.metadata && results.metadata.total === 0))" class="space-y-4">
+    <div x-show="hasSearched && (hasResults || (!searching && resultsMetadata.total === 0))" class="space-y-4">
         <!-- Results Free from Excipients -->
         <div x-show="paginatedResultsFree.length > 0">
             <h3 class="text-lg font-semibold text-green-700 dark:text-green-400 mb-3">
                 Showing Results Matching Filters 
-                <span x-text="((currentPage - 1) * itemsPerPage) + 1"></span>-<span x-text="Math.min(currentPage * itemsPerPage, (results && results.results_free ? results.results_free.length : 0))"></span> 
-                of <span x-text="results && results.metadata ? results.metadata.total_free : 0"></span>
+                <span x-text="((currentPage - 1) * itemsPerPage) + 1"></span>-<span x-text="Math.min(currentPage * itemsPerPage, (resultsMapFree ? resultsMapFree.size : 0))"></span> 
+                of <span x-text="resultsMetadata.total_free"></span>
             </h3>
             <div class="space-y-4">
                 <template x-for="result in paginatedResultsFree" :key="result.set_id">
@@ -380,11 +380,30 @@
                             </div>
                             <div>
                                 <span class="text-sm font-medium text-gray-600 dark:text-gray-400">NDC:</span>
-                                <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.ndc"></span>
+                                <div class="text-sm text-gray-900 dark:text-gray-100">
+                                    <template x-if="result.ndc_count && result.ndc_count > 1">
+                                        <div>
+                                            <div class="font-medium mb-1">
+                                                <span x-text="result.ndc_count"></span> NDC codes:
+                                            </div>
+                                            <ul class="list-disc list-inside ml-2">
+                                                <template x-for="(ndc, idx) in result.ndcs" :key="idx">
+                                                    <li x-text="ndc"></li>
+                                                </template>
+                                            </ul>
+                                        </div>
+                                    </template>
+                                    <template x-if="!result.ndc_count || result.ndc_count === 1">
+                                        <span x-text="result.ndc || result.ndcs?.[0] || 'N/A'"></span>
+                                    </template>
+                                </div>
                             </div>
                             <div>
                                 <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Packager:</span>
                                 <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.packager"></span>
+                                <span x-show="result.ndc_count && result.ndc_count > 1" class="ml-2 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded-full">
+                                    Grouped: <span x-text="result.ndc_count"></span> variants
+                                </span>
                             </div>
                         </div>
                         
@@ -421,8 +440,8 @@
         <div x-show="paginatedResultsWith.length > 0">
             <h3 class="text-lg font-semibold text-yellow-700 dark:text-yellow-400 mb-3">
                 Showing Results Containing Excluded Excipients 
-                <span x-text="((currentPage - 1) * itemsPerPage) + 1"></span>-<span x-text="Math.min(currentPage * itemsPerPage, (results && results.results_with ? results.results_with.length : 0))"></span> 
-                of Total <span x-text="results && results.metadata ? results.metadata.total_with : 0"></span>
+                <span x-text="((currentPage - 1) * itemsPerPage) + 1"></span>-<span x-text="Math.min(currentPage * itemsPerPage, (resultsMapWith ? resultsMapWith.size : 0))"></span> 
+                of Total <span x-text="resultsMetadata.total_with"></span>
             </h3>
             <div class="space-y-4">
                 <template x-for="result in paginatedResultsWith" :key="result.set_id">
@@ -453,11 +472,30 @@
                             </div>
                             <div>
                                 <span class="text-sm font-medium text-gray-600 dark:text-gray-400">NDC:</span>
-                                <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.ndc"></span>
+                                <div class="text-sm text-gray-900 dark:text-gray-100">
+                                    <template x-if="result.ndc_count && result.ndc_count > 1">
+                                        <div>
+                                            <div class="font-medium mb-1">
+                                                <span x-text="result.ndc_count"></span> NDC codes:
+                                            </div>
+                                            <ul class="list-disc list-inside ml-2">
+                                                <template x-for="(ndc, idx) in result.ndcs" :key="idx">
+                                                    <li x-text="ndc"></li>
+                                                </template>
+                                            </ul>
+                                        </div>
+                                    </template>
+                                    <template x-if="!result.ndc_count || result.ndc_count === 1">
+                                        <span x-text="result.ndc || result.ndcs?.[0] || 'N/A'"></span>
+                                    </template>
+                                </div>
                             </div>
                             <div>
                                 <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Packager:</span>
                                 <span class="text-sm text-gray-900 dark:text-gray-100" x-text="result.packager"></span>
+                                <span x-show="result.ndc_count && result.ndc_count > 1" class="ml-2 px-2 py-1 bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200 text-xs rounded-full">
+                                    Grouped: <span x-text="result.ndc_count"></span> variants
+                                </span>
                             </div>
                         </div>
                         
@@ -495,7 +533,7 @@
         </div>
         
         <!-- No Results -->
-        <div x-show="hasSearched && !searching && results && results.metadata && results.metadata.total === 0" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
+        <div x-show="hasSearched && !searching && resultsMetadata.total === 0" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
             <p class="text-gray-600 dark:text-gray-400">No results found matching your criteria.</p>
         </div>
         
@@ -568,12 +606,16 @@ function searchApp() {
         selectedExcipients: [],
         newExcipient: '',
         showCategories: false,
-        results: {
-            results_free: [],
-            results_with: [],
-            metadata: { total_free: 0, total_with: 0, total: 0 },
-            excipients_highlighted: []
+        // Use Maps for real-time grouping (key = grouping key, value = result object)
+        resultsMapFree: new Map(),
+        resultsMapWith: new Map(),
+        // Keep metadata separate
+        resultsMetadata: {
+            total_free: 0,
+            total_with: 0,
+            total: 0
         },
+        excipients_highlighted: [],
         // Pagination state
         currentPage: 1,
         itemsPerPage: 10,
@@ -769,6 +811,56 @@ function searchApp() {
                 }
             });
         },
+
+        // Generate grouping key for a result (matches backend logic)
+        generateGroupingKey(result) {
+            // Sort active ingredients by name for consistent ordering
+            const activeNames = (result.active || [])
+                .map(ing => ing.name || '')
+                .filter(name => name)
+                .sort()
+                .join('|');
+            
+            // Sort inactive ingredients by name for consistent ordering
+            const inactiveNames = (result.inactive || [])
+                .filter(name => name)
+                .sort()
+                .join('|');
+            
+            // Combine all grouping criteria
+            const packager = result.packager || 'N/A';
+            const drugType = result.drug_type || 'N/A';
+            
+            return `${activeNames}||${inactiveNames}||${packager}||${drugType}`;
+        },
+        
+        // Add or merge a result into the appropriate Map
+        addOrMergeResult(result, category) {
+            const key = this.generateGroupingKey(result);
+            const targetMap = category === 'free' ? this.resultsMapFree : this.resultsMapWith;
+            
+            if (targetMap.has(key)) {
+                // Merge: add NDC to existing entry
+                const existing = targetMap.get(key);
+                const ndc = result.ndc || 'N/A';
+                if (!existing.ndcs.includes(ndc)) {
+                    existing.ndcs.push(ndc);
+                    existing.ndc_count = existing.ndcs.length;
+                }
+                if (result.set_id && !existing.grouped_set_ids.includes(result.set_id)) {
+                    existing.grouped_set_ids.push(result.set_id);
+                }
+            } else {
+                // New entry: initialize with NDC array
+                const ndc = result.ndc || 'N/A';
+                targetMap.set(key, {
+                    ...result,
+                    ndcs: [ndc],
+                    ndc_count: 1,
+                    grouped_set_ids: [result.set_id]
+                });
+            }
+        },
         
         async performSearch() {
             // Use drugQuery if no autocomplete suggestion was selected
@@ -779,12 +871,14 @@ function searchApp() {
             }
             
             // Reset results and pagination
-            this.results = {
-                results_free: [],
-                results_with: [],
-                metadata: { total_free: 0, total_with: 0, total: 0 },
-                excipients_highlighted: []
+            this.resultsMapFree.clear();
+            this.resultsMapWith.clear();
+            this.resultsMetadata = {
+                total_free: 0,
+                total_with: 0,
+                total: 0
             };
+            this.excipients_highlighted = [];
             this.resetPagination();
             this.searching = true;
             this.hasSearched = true;  // Mark that a search has been performed
@@ -862,7 +956,7 @@ function searchApp() {
                             if (data.type === 'init') {
                                 // Combine exclude-inactive and legacy excipients for highlighting
                                 const allExcipients = [...this.excludeInactive, ...this.selectedExcipients];
-                                this.results.excipients_highlighted = [...new Set(allExcipients)]; // Remove duplicates
+                                this.excipients_highlighted = [...new Set(allExcipients)]; // Remove duplicates
                                 this.searchStatus = 'Searching for drugs...';
                             } else if (data.type === 'result') {
                                 // Normalize the result to ensure active and inactive are arrays
@@ -882,18 +976,11 @@ function searchApp() {
                                     }
                                 }
                                 
-                                // Add result to appropriate category
-                                // Alpine.js automatically detects array mutations (push, pop, etc.)
-                                // The result will appear immediately in the DOM
-                                if (data.category === 'free') {
-                                    this.results.results_free.push(data.result);
-                                } else if (data.category === 'with') {
-                                    this.results.results_with.push(data.result);
-                                }
-                                
-                                // Update metadata - create new object to trigger reactivity
+                                // Add or merge result in real-time
+                                this.addOrMergeResult(data.result, data.category);
+                                 
                                 if (data.metadata) {
-                                    this.results.metadata = {
+                                    this.resultsMetadata = {
                                         total_free: data.metadata.total_free || 0,
                                         total_with: data.metadata.total_with || 0,
                                         total: data.metadata.total || 0
@@ -902,21 +989,19 @@ function searchApp() {
                                 
                                 // Update status
                                 const total = (data.metadata?.total || 0);
-                                const currentTotal = (this.results?.results_free?.length || 0) + (this.results?.results_with?.length || 0);
+                                const currentTotal = this.resultsMapFree.size + this.resultsMapWith.size;
                                 this.searchStatus = `Found ${currentTotal} result${currentTotal !== 1 ? 's' : ''}...`;
                                 
                                 // Log for debugging
                                 console.log(`Result added to ${data.category}:`, data.result.title);
                                 
-                                // Reset to page 1 when first result arrives
-                                if (currentTotal === 1) {
-                                    this.currentPage = 1;
-                                }
                             } else if (data.type === 'complete') {
+                                // Update final metadata
                                 if (data.metadata) {
-                                    this.results.metadata = data.metadata;
+                                    this.resultsMetadata = data.metadata;
                                 }
-                                const totalResults = (this.results?.results_free?.length || 0) + (this.results?.results_with?.length || 0);
+                                
+                                const totalResults = this.resultsMapFree.size + this.resultsMapWith.size;
                                 this.searchStatus = `Search complete! Found ${totalResults} result${totalResults !== 1 ? 's' : ''}.`;
                                 // Reset to page 1 when search completes
                                 this.currentPage = 1;
@@ -934,7 +1019,7 @@ function searchApp() {
                     try {
                         const data = JSON.parse(buffer);
                         if (data.type === 'complete' && data.metadata) {
-                            this.results.metadata = data.metadata;
+                            this.resultsMetadata = data.metadata;
                         }
                     } catch (e) {
                         console.error('Error parsing final buffer:', e);
@@ -944,11 +1029,12 @@ function searchApp() {
             } catch (error) {
                 console.error('Error performing search:', error);
                 alert('An error occurred while searching. Please try again.');
-                this.results = {
-                    results_free: [],
-                    results_with: [],
-                    metadata: { total_free: 0, total_with: 0, total: 0 },
-                    excipients_highlighted: []
+                this.resultsMapFree.clear();
+                this.resultsMapWith.clear();
+                this.resultsMetadata = {
+                    total_free: 0,
+                    total_with: 0,
+                    total: 0
                 };
             } finally {
                 this.searching = false;
@@ -956,9 +1042,9 @@ function searchApp() {
         },
         
         isHighlightedExcipient(ingredient) {
-            if (!this.results || !this.results.excipients_highlighted) return false;
+            if (!this.excipients_highlighted) return false;
             const ingLower = ingredient.toLowerCase();
-            return this.results.excipients_highlighted.some(exc => 
+            return this.excipients_highlighted.some(exc => 
                 ingLower.includes(exc.toLowerCase()) || exc.toLowerCase().includes(ingLower)
             );
         },
@@ -966,8 +1052,8 @@ function searchApp() {
         // Pagination computed properties
         get allResults() {
             // Combine free and with results, free first
-            const free = (this.results?.results_free || []).map(r => ({...r, category: 'free'}));
-            const withResults = (this.results?.results_with || []).map(r => ({...r, category: 'with'}));
+            const free = Array.from(this.resultsMapFree.values()).map(r => ({...r, category: 'free'}));
+            const withResults = Array.from(this.resultsMapWith.values()).map(r => ({...r, category: 'with'}));
             return [...free, ...withResults];
         },
         
@@ -990,7 +1076,7 @@ function searchApp() {
         },
         
         get hasResults() {
-            return (this.results?.results_free?.length > 0) || (this.results?.results_with?.length > 0);
+            return this.resultsMapFree.size > 0 || this.resultsMapWith.size > 0;
         },
         
         // Pagination methods
@@ -1022,4 +1108,3 @@ function searchApp() {
 }
 </script>
 {% endblock %}
-
