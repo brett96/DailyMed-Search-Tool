@@ -452,7 +452,12 @@ class DailyMedService:
             result["dailymed_link"] = f"https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid={result.get('set_id', '')}"
             result["drug_type"] = result.get("form_code_display", "N/A")
             active = result.get("active", [])
-            result["dosage"] = ", ".join([f"{ing.get('name', '')} {ing.get('strength', '')}" for ing in active]) if active else "N/A"
+            # Only use the first (main) active ingredient for dosage
+            if active and len(active) > 0:
+                main_ing = active[0]
+                result["dosage"] = f"{main_ing.get('name', '')} {main_ing.get('strength', '')}".strip()
+            else:
+                result["dosage"] = "N/A"
             
             if contains_excipient:
                 results_with.append(result)
@@ -506,9 +511,13 @@ class DailyMedService:
         form = result.get("form_code_display", "N/A")
         drug_type = form  # Form is the drug type
         
-        # Get dosage from active ingredients
+        # Get dosage from the first (main) active ingredient only
         active = result.get("active", [])
-        dosage = ", ".join([f"{ing.get('name', '')} {ing.get('strength', '')}" for ing in active]) if active else "N/A"
+        if active and len(active) > 0:
+            main_ing = active[0]
+            dosage = f"{main_ing.get('name', '')} {main_ing.get('strength', '')}".strip()
+        else:
+            dosage = "N/A"
         
         result.update({
             "ndc": ndc,

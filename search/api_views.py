@@ -368,7 +368,12 @@ def search_drugs_stream(request):
                 
                 # Set active back to result with only valid ingredients
                 result["active"] = valid_active
-                result["dosage"] = ", ".join([f"{ing.get('name', '')} {ing.get('strength', '')}" for ing in valid_active]) if valid_active else "N/A"
+                # Only use the first (main) active ingredient for dosage
+                if valid_active and len(valid_active) > 0:
+                    main_ing = valid_active[0]
+                    result["dosage"] = f"{main_ing.get('name', '')} {main_ing.get('strength', '')}".strip()
+                else:
+                    result["dosage"] = "N/A"
                 
                 # Add to appropriate list
                 # If we have excluded excipients, categorize for highlighting
