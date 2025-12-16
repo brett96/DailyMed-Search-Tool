@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div x-data="searchApp()" class="space-y-6">
+<div x-data="searchApp()" x-init="loadExcipientCategories()" class="space-y-6">
     <!-- Search Form -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Search for Drugs</h2>
@@ -293,7 +293,7 @@
                             @click="showCategories = !showCategories"
                             class="text-xs text-blue-600 hover:text-blue-800"
                         >
-                            Browse Excipient Categories (CurrentlyHardcoded Placeholders)
+                            Browse Excipient Categories
                         </button>
                         <div x-show="showCategories" class="mt-2 space-y-2 border border-gray-200 rounded p-2 bg-white">
                             <template x-for="(excipients, category) in excipientCategories" :key="category">
@@ -301,12 +301,15 @@
                                     <button
                                         type="button"
                                         @click="toggleCategoryExclude(category)"
-                                        class="text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-100"
+                                        :class="isCategorySelected(category) 
+                                            ? 'text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:text-blue-900 dark:hover:text-blue-100 px-2 py-1 rounded' 
+                                            : 'text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-100'"
                                     >
                                         <span x-text="category"></span>
                                         <span class="ml-1 text-xs text-gray-500 dark:text-gray-400">
                                             (<span x-text="excipients.length"></span>)
                                         </span>
+                                        <span x-show="isCategorySelected(category)" class="ml-1 text-blue-600 dark:text-blue-400">✓</span>
                                     </button>
                                 </div>
                             </template>
@@ -315,6 +318,16 @@
                 </div>
             </div>
         </div>
+        
+        <!-- Clear All Filters Button -->
+        <button
+            type="button"
+            @click="clearAllFilters()"
+            :disabled="!hasAnyFilters()"
+            class="w-full mb-3 px-4 py-2 bg-gray-500 text-white rounded-md hover:bg-gray-600 disabled:bg-gray-300 disabled:text-gray-500 disabled:cursor-not-allowed transition-colors"
+        >
+            Clear All Filters
+        </button>
         
         <!-- Search Button -->
         <button
@@ -623,14 +636,25 @@ function searchApp() {
         searchStatus: 'Initializing search...',
         hasSearched: false,  // Track if a search has been performed
         autocompleteTimeout: null,  // For debouncing autocomplete requests
-        excipientCategories: {
-            'Sweeteners': ['Aspartame', 'Sucralose', 'Saccharin', 'Acesulfame Potassium', 'Stevia'],
-            'Preservatives': ['Sodium Benzoate', 'Potassium Sorbate', 'Methylparaben', 'Propylparaben', 'Benzyl Alcohol'],
-            'Dyes': ['FD&C Red No. 40', 'FD&C Yellow No. 6', 'FD&C Blue No. 1', 'Titanium Dioxide'],
-            'Alcohol': ['Ethanol', 'Isopropyl Alcohol', 'Benzyl Alcohol'],
-            'Lactose': ['Lactose', 'Lactose Monohydrate'],
-            'Gluten': ['Wheat Starch', 'Modified Starch'],
-            'Other Common': ['Talc', 'Magnesium Stearate', 'Silicon Dioxide', 'Cellulose'],
+        excipientCategories: {},  // Will be loaded from API
+        
+        async loadExcipientCategories() {
+            try {
+                const response = await fetch('/api/excipient-categories/');
+                if (response.ok) {
+                    const data = await response.json();
+                    this.excipientCategories = data;
+                    console.log('Loaded excipient categories:', Object.keys(data).length, 'categories');
+                } else {
+                    console.error('Failed to load excipient categories:', response.status);
+                    // Fallback to empty object
+                    this.excipientCategories = {};
+                }
+            } catch (error) {
+                console.error('Error loading excipient categories:', error);
+                // Fallback to empty object
+                this.excipientCategories = {};
+            }
         },
         
         async handleDrugInput(event) {
@@ -799,17 +823,62 @@ function searchApp() {
         removeExcipient(exc) {
             this.selectedExcipients = this.selectedExcipients.filter(e => e !== exc);
         },
+        isCategorySelected(category) {
+            // Check if all excipients from this category are in excludeInactive
+            const excipients = this.excipientCategories[category] || [];
+            if (excipients.length === 0) return false;
+            return excipients.every(exc => this.excludeInactive.includes(exc));
+        },
         toggleCategoryExclude(category) {
-            const excipients = this.excipientCategories[category];
-            excipients.forEach(exc => {
-                if (!this.excludeInactive.includes(exc)) {
-                    this.excludeInactive.push(exc);
-                }
-                // Also add to selectedExcipients for highlighting
-                if (!this.selectedExcipients.includes(exc)) {
-                    this.selectedExcipients.push(exc);
-                }
-            });
+            const excipients = this.excipientCategories[category] || [];
+            const isSelected = this.isCategorySelected(category);
+            
+            if (isSelected) {
+                // Remove all excipients from this category
+                excipients.forEach(exc => {
+                    this.excludeInactive = this.excludeInactive.filter(e => e !== exc);
+                    this.selectedExcipients = this.selectedExcipients.filter(e => e !== exc);
+                });
+            } else {
+                // Add all excipients from this category
+                excipients.forEach(exc => {
+                    if (!this.excludeInactive.includes(exc)) {
+                        this.excludeInactive.push(exc);
+                    }
+                    // Also add to selectedExcipients for highlighting
+                    if (!this.selectedExcipients.includes(exc)) {
+                        this.selectedExcipients.push(exc);
+                    }
+                });
+            }
+        },
+        hasAnyFilters() {
+            return this.includeActive.length > 0 ||
+                   this.excludeActive.length > 0 ||
+                   this.onlyActive.length > 0 ||
+                   this.includeInactive.length > 0 ||
+                   this.excludeInactive.length > 0 ||
+                   this.selectedExcipients.length > 0;
+        },
+        clearAllFilters() {
+            // Clear all active ingredient filters
+            this.includeActive = [];
+            this.excludeActive = [];
+            this.onlyActive = [];
+            this.onlyActiveEnabled = false;
+            this.newIncludeActive = '';
+            this.newExcludeActive = '';
+            this.newOnlyActive = '';
+            
+            // Clear all inactive ingredient filters
+            this.includeInactive = [];
+            this.excludeInactive = [];
+            this.newIncludeInactive = '';
+            this.newExcludeInactive = '';
+            
+            // Clear legacy excipients
+            this.selectedExcipients = [];
+            this.newExcipient = '';
         },
 
         // Generate grouping key for a result (matches backend logic)

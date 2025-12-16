@@ -9,6 +9,14 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 from rest_framework import status
 from .services import DailyMedService, search_rxnorm_logic
+from .excipient_loader import get_excipient_categories
+# Try to import models for local development (database mode)
+try:
+    from .models import ExcipientCategory, Excipient
+    USE_DATABASE = True
+except (ImportError, Exception):
+    # Models not available (e.g., in Vercel deployment without database)
+    USE_DATABASE = False
 
 
 def extract_base_drug_name(drug_name: str) -> str:
@@ -542,4 +550,48 @@ def search_drugs(request):
         Streaming response with results as they are found
     """
     return search_drugs_stream(request)
+
+
+@api_view(['GET'])
+def excipient_categories(request):
+    """
+    API endpoint to retrieve all excipient categories with their excipients.
+    
+    Returns:
+        JSON object with categories as keys and lists of excipient names as values:
+        {
+            "Category Name": ["excipient1", "excipient2", ...],
+            ...
+        }
+    """
+    try:
+        # Try database first (for local development), fall back to Excel file (for Vercel)
+        if USE_DATABASE:
+            try:
+                categories = ExcipientCategory.objects.all().prefetch_related('excipients')
+                result = {}
+                
+                for category in categories:
+                    excipients = list(category.excipients.values_list('ingredient_name', flat=True))
+                    result[category.name] = sorted(excipients)
+                
+                return Response(result, status=status.HTTP_200_OK)
+            except Exception as db_error:
+                # Database query failed, fall back to Excel file
+                print(f"Database query failed, falling back to Excel file: {db_error}", file=sys.stderr)
+                result = get_excipient_categories()
+                return Response(result, status=status.HTTP_200_OK)
+        else:
+            # Use Excel file directly (Vercel deployment)
+            result = get_excipient_categories()
+            return Response(result, status=status.HTTP_200_OK)
+            
+    except Exception as e:
+        import traceback
+        print(f"Error in excipient_categories endpoint: {e}", file=sys.stderr)
+        print(traceback.format_exc(), file=sys.stderr)
+        return Response(
+            {"error": "Failed to retrieve excipient categories"},
+            status=status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
 

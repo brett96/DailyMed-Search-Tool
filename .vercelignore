@@ -1,0 +1,31 @@
+# Vercel ignore file
+# Exclude files that shouldn't be deployed
+
+# Python cache
+__pycache__/
+*.py[cod]
+*.pyc
+
+# Virtual environment
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+
+# Environment files (use Vercel env vars instead)
+.env
+.env.local
+
+# Database files (not used in Vercel)
+db.sqlite3
+db.sqlite3-journal
+
+# Logs
+*.log
+
+# Note: Excipient Categories.xlsx should be included in deployment
+
+
