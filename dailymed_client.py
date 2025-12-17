@@ -187,6 +187,82 @@ class DailyMedAPI:
         # This endpoint returns XML, not JSON
         return self._make_request(f"spls/{set_id}.xml", params=None)
 
+    def get_xmls_by_search(
+        self,
+        drug_name: Optional[str] = None,
+        rxcui: Optional[str] = None,
+        page: int = 1,
+        pagesize: int = 100
+    ) -> Generator[str, None, None]:
+        """
+        Searches for SPLs matching the search criteria and returns all XML results.
+        This method handles pagination automatically to fetch all matching XMLs.
+        
+        Args:
+            drug_name: Drug name to search for (e.g., 'ibuprofen').
+            rxcui: RxNorm CUI to search for.
+            page: Starting page number (default: 1).
+            pagesize: Results per page (default: 100, max recommended).
+            
+        Yields:
+            XML strings for each matching SPL document.
+        """
+        if not drug_name and not rxcui:
+            raise ValueError("Either drug_name or rxcui must be provided.")
+        
+        search_term = rxcui if rxcui else drug_name
+        search_type = "RxCUI" if rxcui else "drug name"
+        print(f"\nSearching for SPLs matching {search_type} '{search_term}' and fetching XMLs...")
+        
+        current_page = page
+        total_fetched = 0
+        
+        while True:
+            try:
+                # Search for SPLs
+                if rxcui:
+                    response = self.search_spls(rxcui=rxcui, pagesize=pagesize, page=current_page)
+                else:
+                    response = self.search_spls(drug_name=drug_name, pagesize=pagesize, page=current_page)
+                
+                data_results = response.get("data", [])
+                metadata = response.get("metadata", {})
+                
+                if not data_results:
+                    break  # No more results
+                
+                # Fetch XML for each SPL
+                for item in data_results:
+                    set_id = item.get("setid")
+                    if not set_id:
+                        continue
+                    
+                    try:
+                        xml_string = self.get_spl_by_setid(set_id)
+                        if xml_string and isinstance(xml_string, str):
+                            total_fetched += 1
+                            yield xml_string
+                    except Exception as e:
+                        print(f"    [ERROR] Failed to fetch XML for SET ID {set_id}: {e}", file=sys.stderr)
+                        continue
+                
+                # Check pagination
+                total_pages = int(metadata.get("total_pages", 0))
+                current_page_num = int(metadata.get("current_page", current_page))
+                
+                print(f"Fetched page {current_page_num} of {total_pages} ({total_fetched} XMLs so far)...", file=sys.stderr)
+                
+                if current_page_num >= total_pages:
+                    break  # Reached the end
+                
+                current_page += 1  # Move to next page
+                
+            except requests.exceptions.RequestException as e:
+                print(f"API search failed on page {current_page}: {e}", file=sys.stderr)
+                break
+        
+        print(f"\nCompleted. Fetched {total_fetched} XML documents total.", file=sys.stderr)
+
     def get_spl_history(self, set_id: str) -> Dict[str, Any]:
         """
         Retrieves the version history for a specific SPL.
@@ -866,7 +942,8 @@ def main():
     # Main parser
     parser = argparse.ArgumentParser(
         description="A command-line client for the DailyMed v2 API.",
-        epilog="Example: python dailymed_client.py get-ingredients \"37e939c6-064b-3548-e063-6294a90a337d\""
+        epilog="Examples:\n  python dailymed_client.py get-ingredients \"37e939c6-064b-3548-e063-6294a90a337d\"\n  python dailymed_client.py get-xmls --drug_name ibuprofen\n  python dailymed_client.py get-xmls --rxcui 5640",
+        formatter_class=argparse.RawDescriptionHelpFormatter
     )
     subparsers = parser.add_subparsers(dest="command", required=True, help="The API command to run")
 
@@ -912,6 +989,13 @@ def main():
     # --- get-spl command ---
     get_spl_parser = subparsers.add_parser("get-spl", help="Get a specific SPL by its SET ID (raw XML).")
     get_spl_parser.add_argument("set_id", type=str, help="The SET ID of the SPL.")
+
+    # --- get-xmls command ---
+    get_xmls_parser = subparsers.add_parser("get-xmls", help="Search for SPLs and return all XML results. Searches by drug name or RxCUI and fetches all matching XML documents.")
+    get_xmls_parser.add_argument("--drug_name", type=str, help="Drug name to search for (e.g., 'ibuprofen'). Either --drug_name or --rxcui must be provided.")
+    get_xmls_parser.add_argument("--rxcui", type=str, help="RxNorm CUI to search for. Either --drug_name or --rxcui must be provided.")
+    get_xmls_parser.add_argument("--page", type=int, default=1, help="Starting page number (default: 1).")
+    get_xmls_parser.add_argument("--pagesize", type=int, default=100, help="Results per page (default: 100, max recommended).")
 
     # --- get-ingredients command ---
     ingredients_parser = subparsers.add_parser("get-ingredients", help="Parse and list ingredients for an SPL.")
@@ -989,6 +1073,27 @@ def main():
         elif args.command == "get-ingredients":
             ingredients_data = api.get_ingredients_from_spl(args.set_id)
             print_ingredients(ingredients_data)
+
+        elif args.command == "get-xmls":
+            if not args.drug_name and not args.rxcui:
+                print("Error: Either --drug_name or --rxcui must be provided.", file=sys.stderr)
+                sys.exit(1)
+            
+            xml_count = 0
+            for xml_string in api.get_xmls_by_search(
+                drug_name=args.drug_name,
+                rxcui=args.rxcui,
+                page=args.page,
+                pagesize=args.pagesize
+            ):
+                xml_count += 1
+                print(f"\n{'='*80}")
+                print(f"XML Document #{xml_count}")
+                print(f"{'='*80}")
+                print(xml_string)
+            
+            if xml_count == 0:
+                print("\nNo XML documents found for the given search criteria.")
 
         # Handle new 'search' command (looping)
         elif args.command == "search":
