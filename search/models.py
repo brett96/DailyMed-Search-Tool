@@ -53,3 +53,4 @@ class Excipient(models.Model):
         return f"{self.ingredient_name} ({self.category.name})"
 
 
+

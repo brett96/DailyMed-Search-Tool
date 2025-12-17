@@ -1,7 +1,7 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div x-data="searchApp()" x-init="loadExcipientCategories()" class="space-y-6">
+<div x-data="searchApp()" x-init="loadExcipientCategories()" @keydown.escape="closeContextMenu()" class="space-y-6">
     <!-- Search Form -->
     <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
         <h2 class="text-xl font-semibold mb-4 text-gray-900 dark:text-white">Search for Drugs</h2>
@@ -270,8 +270,29 @@
                                 Add
                             </button>
                         </div>
-                        <div x-show="excludeInactive.length > 0" class="mt-2 flex flex-wrap gap-2">
-                            <template x-for="ing in excludeInactive" :key="ing">
+                        <!-- Category Filters (shown as single badges) -->
+                        <div x-show="Object.keys(categorySelectedExcipients).some(cat => (categorySelectedExcipients[cat] || []).length > 0)" class="mt-2 flex flex-wrap gap-2">
+                            <template x-for="(excipients, category) in excipientCategories" :key="category">
+                                <template x-if="isCategorySelected(category)">
+                                    <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200">
+                                        <span x-text="category"></span>
+                                        <span class="ml-1 text-xs text-gray-500 dark:text-gray-400">
+                                            (<span x-text="getCategorySelectedCount(category).selected"></span>/<span x-text="getCategorySelectedCount(category).total"></span>)
+                                        </span>
+                                        <button
+                                            type="button"
+                                            @click="toggleCategoryExclude(category)"
+                                            class="ml-1 text-red-600 dark:text-red-300 hover:text-red-800 dark:hover:text-red-100"
+                                        >
+                                            ×
+                                        </button>
+                                    </span>
+                                </template>
+                            </template>
+                        </div>
+                        <!-- Individual Excipient Filters (only show non-category excipients) -->
+                        <div x-show="excludeInactive.filter(ing => !isExcipientInAnyCategory(ing)).length > 0" class="mt-2 flex flex-wrap gap-2">
+                            <template x-for="ing in excludeInactive.filter(ing => !isExcipientInAnyCategory(ing))" :key="ing">
                                 <span class="inline-flex items-center px-2 py-1 rounded-full text-xs bg-red-100 dark:bg-red-900 text-red-800 dark:text-red-200">
                                     <span x-text="ing"></span>
                                     <button
@@ -291,27 +312,60 @@
                         <button
                             type="button"
                             @click="showCategories = !showCategories"
-                            class="text-xs text-blue-600 hover:text-blue-800"
+                            class="text-xs text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300"
                         >
                             Browse Excipient Categories
                         </button>
-                        <div x-show="showCategories" class="mt-2 space-y-2 border border-gray-200 rounded p-2 bg-white">
+                        <div x-show="showCategories" class="mt-2 space-y-2 border border-gray-200 dark:border-gray-600 rounded p-2 bg-white dark:bg-gray-700">
                             <template x-for="(excipients, category) in excipientCategories" :key="category">
                                 <div>
                                     <button
                                         type="button"
-                                        @click="toggleCategoryExclude(category)"
+                                        @click="if (!categoryContextMenuShown && !showContextMenu) toggleCategoryExclude(category)"
+                                        @mousedown="handleCategoryMouseDown(category, $event)"
+                                        @mouseup="handleCategoryMouseUp()"
+                                        @mouseleave="handleCategoryMouseUp()"
+                                        @contextmenu.prevent="handleCategoryContextMenu(category, $event)"
                                         :class="isCategorySelected(category) 
                                             ? 'text-xs font-medium text-blue-700 dark:text-blue-300 bg-blue-50 dark:bg-blue-900/30 hover:text-blue-900 dark:hover:text-blue-100 px-2 py-1 rounded' 
                                             : 'text-xs font-medium text-gray-700 dark:text-gray-200 hover:text-gray-900 dark:hover:text-gray-100'"
                                     >
                                         <span x-text="category"></span>
                                         <span class="ml-1 text-xs text-gray-500 dark:text-gray-400">
-                                            (<span x-text="excipients.length"></span>)
+                                            (<span x-text="getCategorySelectedCount(category).selected"></span>/<span x-text="getCategorySelectedCount(category).total"></span>)
                                         </span>
                                         <span x-show="isCategorySelected(category)" class="ml-1 text-blue-600 dark:text-blue-400">✓</span>
                                     </button>
                                 </div>
+                            </template>
+                        </div>
+                    </div>
+                    
+                    <!-- Context Menu for Category Excipients -->
+                    <div 
+                        x-show="showContextMenu && contextMenuCategory"
+                        @click.away="closeContextMenu()"
+                        x-cloak
+                        class="fixed z-50 bg-white dark:bg-gray-800 border border-gray-200 dark:border-gray-600 rounded-lg shadow-lg p-3 max-h-96 overflow-y-auto"
+                        :style="`left: ${contextMenuPosition.x}px; top: ${contextMenuPosition.y}px;`"
+                    >
+                        <div class="mb-2 pb-2 border-b border-gray-200 dark:border-gray-600">
+                            <h3 class="text-sm font-semibold text-gray-900 dark:text-gray-100" x-text="contextMenuCategory"></h3>
+                            <p class="text-xs text-gray-500 dark:text-gray-400 mt-1">
+                                Select excipients to include/exclude
+                            </p>
+                        </div>
+                        <div class="space-y-1">
+                            <template x-for="excipient in (excipientCategories[contextMenuCategory] || [])" :key="excipient">
+                                <label class="flex items-center space-x-2 px-2 py-1 hover:bg-gray-100 dark:hover:bg-gray-700 rounded cursor-pointer">
+                                    <input
+                                        type="checkbox"
+                                        :checked="isExcipientSelectedInCategory(contextMenuCategory, excipient)"
+                                        @change="toggleExcipientInCategory(contextMenuCategory, excipient)"
+                                        class="rounded border-gray-300 dark:border-gray-600 text-blue-600 focus:ring-blue-500 dark:bg-gray-700"
+                                    />
+                                    <span class="text-sm text-gray-700 dark:text-gray-300" x-text="excipient"></span>
+                                </label>
                             </template>
                         </div>
                     </div>
@@ -637,6 +691,12 @@ function searchApp() {
         hasSearched: false,  // Track if a search has been performed
         autocompleteTimeout: null,  // For debouncing autocomplete requests
         excipientCategories: {},  // Will be loaded from API
+        categorySelectedExcipients: {},  // Track which excipients are selected per category (default all)
+        contextMenuCategory: null,  // Category for context menu
+        contextMenuPosition: { x: 0, y: 0 },  // Position for context menu
+        showContextMenu: false,  // Show/hide context menu
+        longPressTimer: null,  // Timer for long press detection
+        categoryContextMenuShown: false,  // Track if context menu was just shown
         
         async loadExcipientCategories() {
             try {
@@ -644,16 +704,22 @@ function searchApp() {
                 if (response.ok) {
                     const data = await response.json();
                     this.excipientCategories = data;
+                    // Initialize all excipients as selected by default (empty - user must click to add)
+                    Object.keys(data).forEach(category => {
+                        this.categorySelectedExcipients[category] = [];
+                    });
                     console.log('Loaded excipient categories:', Object.keys(data).length, 'categories');
                 } else {
                     console.error('Failed to load excipient categories:', response.status);
                     // Fallback to empty object
                     this.excipientCategories = {};
+                    this.categorySelectedExcipients = {};
                 }
             } catch (error) {
                 console.error('Error loading excipient categories:', error);
                 // Fallback to empty object
                 this.excipientCategories = {};
+                this.categorySelectedExcipients = {};
             }
         },
         
@@ -807,9 +873,26 @@ function searchApp() {
             }
         },
         removeExcludeInactive(ing) {
-            this.excludeInactive = this.excludeInactive.filter(i => i !== ing);
-            // Also remove from selectedExcipients if present
-            this.selectedExcipients = this.selectedExcipients.filter(e => e !== ing);
+            // Only remove if it's not part of a selected category
+            if (!this.isExcipientInAnyCategory(ing) || !this.isExcipientInSelectedCategory(ing)) {
+                this.excludeInactive = this.excludeInactive.filter(i => i !== ing);
+                // Also remove from selectedExcipients if present
+                this.selectedExcipients = this.selectedExcipients.filter(e => e !== ing);
+            } else {
+                // If it's in a selected category, remove it from that category instead
+                Object.keys(this.categorySelectedExcipients).forEach(category => {
+                    const index = (this.categorySelectedExcipients[category] || []).indexOf(ing);
+                    if (index > -1) {
+                        this.categorySelectedExcipients[category].splice(index, 1);
+                    }
+                });
+                this.updateExcludeInactiveFromCategories();
+            }
+        },
+        isExcipientInSelectedCategory(excipient) {
+            return Object.values(this.categorySelectedExcipients).some(excipients => 
+                excipients.includes(excipient)
+            );
         },
         
         // Legacy excipient methods (for highlighting)
@@ -824,41 +907,129 @@ function searchApp() {
             this.selectedExcipients = this.selectedExcipients.filter(e => e !== exc);
         },
         isCategorySelected(category) {
-            // Check if all excipients from this category are in excludeInactive
-            const excipients = this.excipientCategories[category] || [];
-            if (excipients.length === 0) return false;
-            return excipients.every(exc => this.excludeInactive.includes(exc));
+            // Check if category has any selected excipients
+            const selected = this.categorySelectedExcipients[category] || [];
+            return selected.length > 0;
+        },
+        getCategorySelectedCount(category) {
+            const selected = this.categorySelectedExcipients[category] || [];
+            const total = (this.excipientCategories[category] || []).length;
+            return { selected: selected.length, total };
         },
         toggleCategoryExclude(category) {
-            const excipients = this.excipientCategories[category] || [];
-            const isSelected = this.isCategorySelected(category);
+            const selected = this.categorySelectedExcipients[category] || [];
+            const isSelected = selected.length > 0;
             
             if (isSelected) {
-                // Remove all excipients from this category
-                excipients.forEach(exc => {
-                    this.excludeInactive = this.excludeInactive.filter(e => e !== exc);
-                    this.selectedExcipients = this.selectedExcipients.filter(e => e !== exc);
-                });
+                // Remove all selected excipients from this category
+                this.categorySelectedExcipients[category] = [];
             } else {
-                // Add all excipients from this category
-                excipients.forEach(exc => {
-                    if (!this.excludeInactive.includes(exc)) {
-                        this.excludeInactive.push(exc);
-                    }
-                    // Also add to selectedExcipients for highlighting
-                    if (!this.selectedExcipients.includes(exc)) {
-                        this.selectedExcipients.push(exc);
-                    }
-                });
+                // Add all excipients from this category (default - all selected)
+                const allExcipients = this.excipientCategories[category] || [];
+                this.categorySelectedExcipients[category] = [...allExcipients];
             }
+            // Update excludeInactive to match selected excipients
+            this.updateExcludeInactiveFromCategories();
+        },
+        updateExcludeInactiveFromCategories() {
+            // Rebuild excludeInactive from all category selections
+            const categoryExcipients = new Set();
+            Object.values(this.categorySelectedExcipients).forEach(excipients => {
+                excipients.forEach(exc => categoryExcipients.add(exc));
+            });
+            
+            // Remove category excipients that are no longer selected
+            this.excludeInactive = this.excludeInactive.filter(exc => {
+                // Keep if it's in a category selection, or if it's manually added (not in any category)
+                return categoryExcipients.has(exc) || !this.isExcipientInAnyCategory(exc);
+            });
+            
+            // Add newly selected category excipients
+            categoryExcipients.forEach(exc => {
+                if (!this.excludeInactive.includes(exc)) {
+                    this.excludeInactive.push(exc);
+                }
+                if (!this.selectedExcipients.includes(exc)) {
+                    this.selectedExcipients.push(exc);
+                }
+            });
+        },
+        isExcipientInAnyCategory(excipient) {
+            return Object.values(this.excipientCategories).some(excipients => 
+                excipients.includes(excipient)
+            );
+        },
+        toggleExcipientInCategory(category, excipient) {
+            if (!this.categorySelectedExcipients[category]) {
+                this.categorySelectedExcipients[category] = [];
+            }
+            
+            const index = this.categorySelectedExcipients[category].indexOf(excipient);
+            if (index > -1) {
+                // Remove excipient from category selection
+                this.categorySelectedExcipients[category].splice(index, 1);
+            } else {
+                // Add excipient to category selection
+                this.categorySelectedExcipients[category].push(excipient);
+            }
+            // Update excludeInactive to match all category selections
+            this.updateExcludeInactiveFromCategories();
+        },
+        isExcipientInOtherCategories(excipient, currentCategory) {
+            return Object.keys(this.categorySelectedExcipients).some(cat => 
+                cat !== currentCategory && 
+                (this.categorySelectedExcipients[cat] || []).includes(excipient)
+            );
+        },
+        isExcipientSelectedInCategory(category, excipient) {
+            return (this.categorySelectedExcipients[category] || []).includes(excipient);
+        },
+        handleCategoryMouseDown(category, event) {
+            // Start long press timer
+            this.longPressTimer = setTimeout(() => {
+                this.categoryContextMenuShown = true;
+                this.showCategoryContextMenu(category, event);
+            }, 500); // 500ms for long press
+        },
+        handleCategoryMouseUp() {
+            // Clear long press timer
+            if (this.longPressTimer) {
+                clearTimeout(this.longPressTimer);
+                this.longPressTimer = null;
+            }
+            // Reset flag after a short delay to allow click to be prevented
+            setTimeout(() => {
+                this.categoryContextMenuShown = false;
+            }, 100);
+        },
+        handleCategoryContextMenu(category, event) {
+            event.preventDefault();
+            this.categoryContextMenuShown = true;
+            this.showCategoryContextMenu(category, event);
+        },
+        showCategoryContextMenu(category, event) {
+            this.contextMenuCategory = category;
+            // Position menu, ensuring it doesn't go off-screen
+            const x = Math.min(event.clientX, window.innerWidth - 250);
+            const y = Math.min(event.clientY, window.innerHeight - 300);
+            this.contextMenuPosition = { x, y };
+            this.showContextMenu = true;
+        },
+        closeContextMenu() {
+            this.showContextMenu = false;
+            this.contextMenuCategory = null;
         },
         hasAnyFilters() {
+            const hasCategoryFilters = Object.values(this.categorySelectedExcipients).some(
+                excipients => excipients.length > 0
+            );
             return this.includeActive.length > 0 ||
                    this.excludeActive.length > 0 ||
                    this.onlyActive.length > 0 ||
                    this.includeInactive.length > 0 ||
                    this.excludeInactive.length > 0 ||
-                   this.selectedExcipients.length > 0;
+                   this.selectedExcipients.length > 0 ||
+                   hasCategoryFilters;
         },
         clearAllFilters() {
             // Clear all active ingredient filters
@@ -879,6 +1050,12 @@ function searchApp() {
             // Clear legacy excipients
             this.selectedExcipients = [];
             this.newExcipient = '';
+            
+            // Clear category selections (reset to empty - no categories selected)
+            Object.keys(this.excipientCategories).forEach(category => {
+                this.categorySelectedExcipients[category] = [];
+            });
+            this.updateExcludeInactiveFromCategories();
         },
 
         // Generate grouping key for a result (matches backend logic)
@@ -938,6 +1115,15 @@ function searchApp() {
                 alert('Please enter a drug name to search.');
                 return;
             }
+            
+            // Debug: Log filter state
+            console.log('Search filters:', {
+                excludeInactive: this.excludeInactive,
+                categorySelectedExcipients: this.categorySelectedExcipients,
+                includeInactive: this.includeInactive,
+                excludeActive: this.excludeActive,
+                includeActive: this.includeActive
+            });
             
             // Reset results and pagination
             this.resultsMapFree.clear();
