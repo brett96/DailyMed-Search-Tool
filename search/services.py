@@ -84,6 +84,7 @@ class DailyMedService:
     def get_dailymed_suggestions(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
         """
         Get drug name suggestions directly from DailyMed's API to match their site behavior.
+        Only returns suggestions where the keyword appears at the start of any word.
 
         Args:
             query: Search query string
@@ -93,37 +94,95 @@ class DailyMedService:
             List of drug dictionaries with 'label', 'value' (empty string), and 'metadata' keys
         """
         try:
-            # Fetch from DailyMed API using the updated client method
-            # DailyMed performs a 'contains' search by default
-            response = self.api.get_drug_names(drug_name=query, pagesize=limit)
-            data = response.get('data', [])
+            query_upper = query.upper().strip()
+            if not query_upper:
+                return []
             
             suggestions = []
-            for item in data:
-                name = item.get('drug_name')
-                if not name:
-                    continue
-                
-                # We return an empty value for RxCUI because DailyMed names 
-                # don't map 1:1 to RxCUIs here. The frontend will fall back 
-                # to text-based search (url += ?drug=...) which is correct for this workflow.
-                suggestions.append({
-                    'label': name,
-                    'value': '', 
-                    'metadata': {} 
-                })
+            seen_names = set()
+            current_page = 1
+            pagesize = 100  # Use max pagesize to get more results per page
+            max_pages = 3  # Limit pagination to avoid too many API calls
             
-            # DailyMed results aren't always sorted by relevance to the search term
-            # A simple sort can help putting "starts with" matches first
-            query_lower = query.lower()
+            # Paginate through results to get enough matches
+            while len(suggestions) < limit and current_page <= max_pages:
+                # Fetch from DailyMed API using the updated client method
+                # DailyMed performs a 'contains' search by default, so we get more results to filter
+                response = self.api.get_drug_names(drug_name=query, pagesize=pagesize, page=current_page)
+                data = response.get('data', [])
+                
+                if not data:
+                    break  # No more results
+                
+                for item in data:
+                    if len(suggestions) >= limit:
+                        break
+                    
+                    name = item.get('drug_name')
+                    if not name:
+                        continue
+                    
+                    name_upper = name.upper().strip()
+                    
+                    # Skip duplicates
+                    if name_upper in seen_names:
+                        continue
+                    
+                    # Check if keyword appears at the start of any word in the drug name
+                    # Split by spaces, hyphens, slashes, and other word separators
+                    # This handles cases like "CHILDRENS TYLENOL", "TYLENOL-8HR", "TYLENOL/ACETAMINOPHEN"
+                    words = re.split(r'[\s\-_/]+', name_upper)
+                    matches = False
+                    first_word_matches = False
+                    
+                    for i, word in enumerate(words):
+                        if word and word.startswith(query_upper):
+                            matches = True
+                            if i == 0:  # First word matches
+                                first_word_matches = True
+                            break
+                    
+                    # Only include if keyword starts any word
+                    if not matches:
+                        continue
+                    
+                    seen_names.add(name_upper)
+                    suggestions.append({
+                        'label': name_upper,
+                        'value': '', 
+                        'metadata': {},
+                        '_first_word_match': first_word_matches  # Track for sorting
+                    })
+                
+                # Check if there are more pages
+                metadata = response.get('metadata', {})
+                total_pages = int(metadata.get('total_pages', 0))
+                current_page_num = int(metadata.get('current_page', current_page))
+                
+                if current_page_num >= total_pages:
+                    break  # No more pages
+                
+                current_page += 1
+            
+            # Sort suggestions: 
+            # 1. First word matches first (drug name starts with query)
+            # 2. Then other word matches (keyword in middle/end words)
+            # 3. Then alphabetical within each group
             suggestions.sort(key=lambda s: (
-                not s['label'].lower().startswith(query_lower), # Starts with query first
-                s['label'] # Then alphabetical
+                not s.get('_first_word_match', False),  # First word matches first
+                not s['label'].startswith(query_upper),  # Then exact start matches
+                s['label']  # Then alphabetical
             ))
             
-            return suggestions
+            # Remove the temporary sorting key
+            for suggestion in suggestions:
+                suggestion.pop('_first_word_match', None)
+            
+            return suggestions[:limit]
         except Exception as e:
             print(f"Error fetching DailyMed suggestions: {e}", file=sys.stderr)
+            import traceback
+            print(traceback.format_exc(), file=sys.stderr)
             return []
     
     def get_drug_autocomplete(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
