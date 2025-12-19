@@ -92,18 +92,19 @@ def extract_base_drug_name(drug_name: str) -> str:
 @api_view(['GET'])
 def drug_autocomplete(request):
     """
-    API endpoint for drug name autocomplete using RxNorm database.
-    
+    API endpoint for drug name autocomplete using DailyMed's own drug name index.
+    Matches the behavior of the DailyMed website search bar.
+
     Query params:
-        q: Search query (drug name or NDC)
-        limit: Maximum number of results (default: 20, max: 250)
+        q: Search query (drug name)
+        limit: Maximum number of results (default: 20)
     
     Returns:
         JSON array of drug name suggestions with format:
         {
             'label': Display name,
-            'value': RxCUI,
-            'metadata': {strength, form, route}
+            'value': '' (empty string, triggers text-based search),
+            'metadata': {}
         }
     """
     query = request.GET.get('q', '').strip()
@@ -113,21 +114,11 @@ def drug_autocomplete(request):
         return Response([], status=status.HTTP_200_OK)
     
     try:
-        # Use RxNorm database search logic
-        results = search_rxnorm_logic(query)
+        # Initialize service
+        service = DailyMedService()
         
-        # Limit results if needed
-        if limit > 0 and len(results) > limit:
-            results = results[:limit]
-        
-        # Format results for frontend compatibility
-        suggestions = []
-        for result in results:
-            suggestions.append({
-                'label': result.get('label', result.get('display', '')),
-                'value': result.get('value', result.get('id', '')),
-                'metadata': result.get('metadata', {})
-            })
+        # Use the new method to get suggestions from DailyMed
+        suggestions = service.get_dailymed_suggestions(query, limit)
         
         return Response(suggestions, status=status.HTTP_200_OK)
     except Exception as e:

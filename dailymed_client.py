@@ -288,6 +288,7 @@ class DailyMedAPI:
         self, 
         page: int = 1, 
         pagesize: int = 10,
+        drug_name: Optional[str] = None,
         manufacturer: Optional[str] = None,
         name_type: Optional[str] = None
     ) -> Dict[str, Any]:
@@ -296,6 +297,7 @@ class DailyMedAPI:
         """
         print(f"\nGetting drug names (Page {page}, Size {pagesize})...")
         params = {"page": page, "pagesize": pagesize}
+        self._add_if_present(params, 'drug_name', drug_name)
         self._add_if_present(params, 'manufacturer', manufacturer)
         self._add_if_present(params, 'name_type', name_type)
         return self._make_request("drugnames.json", params=params)
@@ -942,7 +944,7 @@ def main():
     # Main parser
     parser = argparse.ArgumentParser(
         description="A command-line client for the DailyMed v2 API.",
-        epilog="Examples:\n  python dailymed_client.py get-ingredients \"37e939c6-064b-3548-e063-6294a90a337d\"\n  python dailymed_client.py get-xmls --drug_name ibuprofen\n  python dailymed_client.py get-xmls --rxcui 5640",
+        epilog="Examples:\n  python dailymed_client.py get-ingredients \"37e939c6-064b-3548-e063-6294a90a337d\"\n  python dailymed_client.py get-xmls --drug_name ibuprofen\n  python dailymed_client.py get-xmls --rxcui 5640\n  python dailymed_client.py get-drug-names duloxetine\n  python dailymed_client.py get-drug-names aspirin --limit 10",
         formatter_class=argparse.RawDescriptionHelpFormatter
     )
     subparsers = parser.add_subparsers(dest="command", required=True, help="The API command to run")
@@ -1021,6 +1023,11 @@ def main():
     drugnames_parser.add_argument("--pagesize", type=int, default=10, help="Results per page (max 100).")
     drugnames_parser.add_argument("--manufacturer", type=str, help="Filter by manufacturer name.")
     drugnames_parser.add_argument("--name_type", type=str, help="Filter by name type ('g' for generic, 'b' for brand).")
+    
+    # get-drug-names (autocomplete suggestions)
+    drug_names_autocomplete_parser = subparsers.add_parser("get-drug-names", help="Get autocomplete suggestions for a drug name keyword (matches DailyMed website behavior).")
+    drug_names_autocomplete_parser.add_argument("keyword", type=str, help="Search keyword to get autocomplete suggestions for.")
+    drug_names_autocomplete_parser.add_argument("--limit", type=int, default=20, help="Maximum number of suggestions to return (default: 20, max: 100).")
 
     # get-ndcs
     ndcs_list_parser = subparsers.add_parser("get-ndcs", help="Get a list of all ndcs.")
@@ -1148,6 +1155,38 @@ def main():
                     manufacturer=args.manufacturer,
                     name_type=args.name_type
                 )
+            
+            elif args.command == "get-drug-names":
+                # Get autocomplete suggestions for the keyword
+                limit = min(args.limit, 100)  # Cap at 100
+                result = api.get_drug_names(
+                    drug_name=args.keyword,
+                    pagesize=limit,
+                    page=1
+                )
+                
+                # Format the response to show just the drug names as a clean list
+                data = result.get("data", [])
+                suggestions = []
+                for item in data:
+                    drug_name = item.get("drug_name")
+                    if drug_name:
+                        suggestions.append(drug_name)
+                
+                # Sort suggestions: exact matches first, then alphabetical
+                keyword_lower = args.keyword.lower()
+                suggestions.sort(key=lambda s: (
+                    not s.lower().startswith(keyword_lower),  # Starts with keyword first
+                    s  # Then alphabetical
+                ))
+                
+                # Create a formatted result
+                result = {
+                    "keyword": args.keyword,
+                    "suggestions": suggestions,
+                    "count": len(suggestions),
+                    "metadata": result.get("metadata", {})
+                }
                 
             elif args.command == "get-ndcs":
                 result = api.get_ndcs(

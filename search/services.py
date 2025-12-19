@@ -81,6 +81,51 @@ class DailyMedService:
         
         return MockArgs()
     
+    def get_dailymed_suggestions(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
+        """
+        Get drug name suggestions directly from DailyMed's API to match their site behavior.
+
+        Args:
+            query: Search query string
+            limit: Maximum number of results to return
+            
+        Returns:
+            List of drug dictionaries with 'label', 'value' (empty string), and 'metadata' keys
+        """
+        try:
+            # Fetch from DailyMed API using the updated client method
+            # DailyMed performs a 'contains' search by default
+            response = self.api.get_drug_names(drug_name=query, pagesize=limit)
+            data = response.get('data', [])
+            
+            suggestions = []
+            for item in data:
+                name = item.get('drug_name')
+                if not name:
+                    continue
+                
+                # We return an empty value for RxCUI because DailyMed names 
+                # don't map 1:1 to RxCUIs here. The frontend will fall back 
+                # to text-based search (url += ?drug=...) which is correct for this workflow.
+                suggestions.append({
+                    'label': name,
+                    'value': '', 
+                    'metadata': {} 
+                })
+            
+            # DailyMed results aren't always sorted by relevance to the search term
+            # A simple sort can help putting "starts with" matches first
+            query_lower = query.lower()
+            suggestions.sort(key=lambda s: (
+                not s['label'].lower().startswith(query_lower), # Starts with query first
+                s['label'] # Then alphabetical
+            ))
+            
+            return suggestions
+        except Exception as e:
+            print(f"Error fetching DailyMed suggestions: {e}", file=sys.stderr)
+            return []
+    
     def get_drug_autocomplete(self, query: str, limit: int = 20) -> List[Dict[str, Any]]:
         """
         Get drug name suggestions using RxNorm Approximate Match API (Matches MTM Logic).
