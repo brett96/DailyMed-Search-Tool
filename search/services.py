@@ -102,10 +102,11 @@ class DailyMedService:
             seen_names = set()
             current_page = 1
             pagesize = 100  # Use max pagesize to get more results per page
-            max_pages = 3  # Limit pagination to avoid too many API calls
+            max_pages = 5  # Fetch more pages to get better results before sorting
+            target_collect = limit * 3  # Collect more results than needed for better sorting
             
             # Paginate through results to get enough matches
-            while len(suggestions) < limit and current_page <= max_pages:
+            while len(suggestions) < target_collect and current_page <= max_pages:
                 # Fetch from DailyMed API using the updated client method
                 # DailyMed performs a 'contains' search by default, so we get more results to filter
                 response = self.api.get_drug_names(drug_name=query, pagesize=pagesize, page=current_page)
@@ -115,7 +116,7 @@ class DailyMedService:
                     break  # No more results
                 
                 for item in data:
-                    if len(suggestions) >= limit:
+                    if len(suggestions) >= target_collect:
                         break
                     
                     name = item.get('drug_name')
@@ -129,14 +130,26 @@ class DailyMedService:
                         continue
                     
                     # Check if keyword appears at the start of any word in the drug name
-                    # Split by spaces, hyphens, slashes, and other word separators
-                    # This handles cases like "CHILDRENS TYLENOL", "TYLENOL-8HR", "TYLENOL/ACETAMINOPHEN"
-                    words = re.split(r'[\s\-_/]+', name_upper)
+                    # Split on word boundaries: spaces, hyphens, slashes, parentheses, brackets, commas, periods
+                    # This ensures "ace" matches "ACE INHIBITOR", "ACEBUTOLOL", "ACETONIDE", "ACETATE" (all start with "ACE")
+                    words = re.split(r'[\s\-_/\(\)\[\],\.]+', name_upper)
                     matches = False
                     first_word_matches = False
                     
                     for i, word in enumerate(words):
-                        if word and word.startswith(query_upper):
+                        if not word:
+                            continue
+                        
+                        # Remove any leading non-alphabetic characters (like ".", "-", etc.)
+                        # This handles cases like ".ALPHA.-TOCOPHEROL" -> "ALPHA" and "TOCOPHEROL"
+                        word_clean = re.sub(r'^[^A-Z]+', '', word)
+                        if not word_clean:
+                            continue
+                        
+                        # Check if the cleaned word starts with the query
+                        # Include any word that starts with the keyword, even if there are more characters after it
+                        # "ACE" matches "ACE", "ACEBUTOLOL", "ACETONIDE", "ACETATE", etc.
+                        if word_clean.startswith(query_upper):
                             matches = True
                             if i == 0:  # First word matches
                                 first_word_matches = True
@@ -164,10 +177,11 @@ class DailyMedService:
                 
                 current_page += 1
             
-            # Sort suggestions: 
-            # 1. First word matches first (drug name starts with query)
-            # 2. Then other word matches (keyword in middle/end words)
+            # Sort suggestions to match DailyMed's behavior:
+            # 1. First word matches first (drug name starts with query) - highest priority
+            # 2. Then results where the entire name starts with query (after cleaning)
             # 3. Then alphabetical within each group
+            # This ensures "ACEBUTOLOL" appears before "(CIPROFLOXACIN AND FLUOCINOLONE ACETONIDE)"
             suggestions.sort(key=lambda s: (
                 not s.get('_first_word_match', False),  # First word matches first
                 not s['label'].startswith(query_upper),  # Then exact start matches
