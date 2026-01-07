@@ -38,6 +38,9 @@ class DailyMedService:
         self, 
         drug_name: Optional[str] = None,
         rxcui: Optional[str] = None,
+        ndc: Optional[str] = None,
+        setid: Optional[str] = None,
+        drug_class_code: Optional[str] = None,
         page: int = 1, 
         pagesize: int = 25,
         route: Optional[str] = None,
@@ -52,8 +55,11 @@ class DailyMedService:
         Create a mock argparse.Namespace for search_with_filters.
         
         Args:
-            drug_name: Drug name to search for (used if rxcui not provided)
+            drug_name: Drug name to search for (used if other specific params not provided)
             rxcui: RxCUI to search for (takes precedence over drug_name)
+            ndc: NDC code to search for (takes precedence over drug_name and rxcui)
+            setid: Set ID to search for (takes highest precedence)
+            drug_class_code: Drug class code to search for
             page: Page number
             pagesize: Results per page
             route: Route of administration filter
@@ -66,9 +72,12 @@ class DailyMedService:
         """
         class MockArgs:
             def __init__(self):
-                # Use rxcui if provided, otherwise use drug_name
-                self.drug_name = drug_name if not rxcui else None
+                # Priority: setid > ndc > rxcui > drug_class_code > drug_name
+                self.drug_name = drug_name if not (setid or ndc or rxcui or drug_class_code) else None
                 self.rxcui = rxcui
+                self.ndc = ndc
+                self.setid = setid
+                self.drug_class_code = drug_class_code
                 self.page = page
                 self.pagesize = pagesize
                 self.route = route

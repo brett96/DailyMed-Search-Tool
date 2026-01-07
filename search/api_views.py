@@ -151,14 +151,18 @@ def search_drugs_stream(request):
     """
     drug_name = request.GET.get('drug', '').strip()
     rxcui = request.GET.get('rxcui', '').strip() or None
+    ndc = request.GET.get('ndc', '').strip() or None
+    # Keep NDC with dashes - DailyMed API prefers this format
+    setid = request.GET.get('setid', '').strip() or None
+    drug_class_code = request.GET.get('drug_class_code', '').strip() or None
     excipients_str = request.GET.get('excipients', '').strip()
     page = int(request.GET.get('page', 1))
     pagesize = int(request.GET.get('pagesize', 25))
     
-    # Validate that either drug_name or rxcui is provided
-    if not drug_name and not rxcui:
+    # Validate that at least one search parameter is provided
+    if not drug_name and not rxcui and not ndc and not setid and not drug_class_code:
         return Response(
-            {"error": "Either drug name or rxcui is required"},
+            {"error": "Either drug name, rxcui, ndc, setid, or drug_class_code is required"},
             status=status.HTTP_400_BAD_REQUEST
         )
     
@@ -208,11 +212,91 @@ def search_drugs_stream(request):
             all_excipients_for_categorization = list(set(exclude_inactive + excipients)) if exclude_inactive else excipients
             excipients_lower = {exc.lower() for exc in all_excipients_for_categorization} if all_excipients_for_categorization else set()
             
-            # Try RxCUI search first if available, then fall back to drug_name if no results
+            # Try different search types in priority order: Set ID > NDC > RxCUI > Drug Class > Drug Name
             mock_args = None
             
-            # First attempt: Try RxCUI if available
-            if rxcui:
+            # Priority 1: Set ID (most specific)
+            if setid:
+                mock_args = service._create_mock_args(
+                    drug_name=None,
+                    rxcui=None,
+                    ndc=None,
+                    setid=setid,
+                    drug_class_code=None,
+                    page=page,
+                    pagesize=pagesize,
+                    route=route,
+                    form=form,
+                    only_active=only_active,
+                    include_active=include_active,
+                    exclude_active=exclude_active,
+                    include_inactive=include_inactive,
+                    exclude_inactive=exclude_inactive
+                )
+                print(f"Using Set ID {setid} for search", file=sys.stderr)
+            # Priority 2: NDC
+            elif ndc:
+                # DailyMed API prefers NDC with dashes, so use as-is
+                # Test if NDC search returns any results
+                test_results = service.api.search_spls(ndc=ndc, pagesize=1, page=1)
+                if test_results.get("data") and len(test_results.get("data", [])) > 0:
+                    print(f"Using NDC {ndc} for search (found {len(test_results.get('data', []))} initial results)", file=sys.stderr)
+                    mock_args = service._create_mock_args(
+                        drug_name=None,
+                        rxcui=None,
+                        ndc=ndc,
+                        setid=None,
+                        drug_class_code=None,
+                        page=page,
+                        pagesize=pagesize,
+                        route=route,
+                        form=form,
+                        only_active=only_active,
+                        include_active=include_active,
+                        exclude_active=exclude_active,
+                        include_inactive=include_inactive,
+                        exclude_inactive=exclude_inactive
+                    )
+                else:
+                    # NDC search returned no results - try without dashes as fallback
+                    ndc_no_dashes = ndc.replace('-', '')
+                    if ndc_no_dashes != ndc:
+                        print(f"NDC {ndc} search returned no results, trying without dashes: {ndc_no_dashes}", file=sys.stderr)
+                        test_no_dashes = service.api.search_spls(ndc=ndc_no_dashes, pagesize=1, page=1)
+                        if test_no_dashes.get("data") and len(test_no_dashes.get("data", [])) > 0:
+                            print(f"Found results with NDC format {ndc_no_dashes}, using that", file=sys.stderr)
+                            mock_args = service._create_mock_args(
+                                drug_name=None,
+                                rxcui=None,
+                                ndc=ndc_no_dashes,
+                                setid=None,
+                                drug_class_code=None,
+                                page=page,
+                                pagesize=pagesize,
+                                route=route,
+                                form=form,
+                                only_active=only_active,
+                                include_active=include_active,
+                                exclude_active=exclude_active,
+                                include_inactive=include_inactive,
+                                exclude_inactive=exclude_inactive
+                            )
+                        else:
+                            # No results with either format
+                            yield json.dumps({
+                                "type": "error",
+                                "error": f"No results found for NDC {ndc}. Please verify the NDC code is correct."
+                            }) + "\n"
+                            return
+                    else:
+                        # Already tried without dashes, no results
+                        yield json.dumps({
+                            "type": "error",
+                            "error": f"No results found for NDC {ndc}. Please verify the NDC code is correct."
+                        }) + "\n"
+                        return
+            # Priority 3: RxCUI
+            elif rxcui:
                 # Check if RxCUI search returns any results
                 # We'll do a quick test search to see if there are results
                 test_results = service.api.search_spls(rxcui=rxcui, pagesize=1, page=1)
@@ -226,6 +310,9 @@ def search_drugs_stream(request):
                     mock_args = service._create_mock_args(
                         drug_name=base_drug_name,  # Pass extracted name for fallback
                         rxcui=rxcui,
+                        ndc=None,
+                        setid=None,
+                        drug_class_code=None,
                         page=page,
                         pagesize=pagesize,
                         route=route,
@@ -248,6 +335,9 @@ def search_drugs_stream(request):
                         mock_args = service._create_mock_args(
                             drug_name=base_drug_name,
                             rxcui=None,
+                            ndc=None,
+                            setid=None,
+                            drug_class_code=None,
                             page=page,
                             pagesize=pagesize,
                             route=route,
@@ -267,12 +357,31 @@ def search_drugs_stream(request):
                             "error": f"No results found for RxCUI {rxcui}. Please try searching by drug name instead."
                         }) + "\n"
                         return
+            # Priority 4: Drug Class Code
+            elif drug_class_code:
+                mock_args = service._create_mock_args(
+                    drug_name=None,
+                    rxcui=None,
+                    ndc=None,
+                    setid=None,
+                    drug_class_code=drug_class_code,
+                    page=page,
+                    pagesize=pagesize,
+                    route=route,
+                    form=form,
+                    only_active=only_active,
+                    include_active=include_active,
+                    exclude_active=exclude_active,
+                    include_inactive=include_inactive,
+                    exclude_inactive=exclude_inactive
+                )
+                print(f"Using drug_class_code '{drug_class_code}' for search", file=sys.stderr)
+            # Priority 5: Drug Name (default)
             else:
-                # No RxCUI, use drug_name
                 if not drug_name:
                     yield json.dumps({
                         "type": "error",
-                        "error": "Either drug name or rxcui is required"
+                        "error": "Either drug name, rxcui, ndc, setid, or drug_class_code is required"
                     }) + "\n"
                     return
                 
@@ -282,6 +391,9 @@ def search_drugs_stream(request):
                 mock_args = service._create_mock_args(
                     drug_name=base_drug_name,
                     rxcui=None,
+                    ndc=None,
+                    setid=None,
+                    drug_class_code=None,
                     page=page,
                     pagesize=pagesize,
                     route=route,
@@ -301,10 +413,30 @@ def search_drugs_stream(request):
                 }) + "\n"
                 return
             
+            # IMPORTANT: For excipient filtering, we want to show ALL results, not filter them out
+            # So we'll get all results and categorize them based on excipient presence
+            # Create a modified mock_args without exclude_inactive so we get ALL results
+            all_results_mock_args = service._create_mock_args(
+                drug_name=mock_args.drug_name if hasattr(mock_args, 'drug_name') else None,
+                rxcui=mock_args.rxcui if hasattr(mock_args, 'rxcui') else None,
+                ndc=mock_args.ndc if hasattr(mock_args, 'ndc') else None,
+                setid=mock_args.setid if hasattr(mock_args, 'setid') else None,
+                drug_class_code=mock_args.drug_class_code if hasattr(mock_args, 'drug_class_code') else None,
+                page=page,
+                pagesize=pagesize,
+                route=route,
+                form=form,
+                only_active=only_active,
+                include_active=include_active,
+                exclude_active=exclude_active,
+                include_inactive=include_inactive,
+                exclude_inactive=None  # Don't filter - we want ALL results to categorize
+            )
+            
             # Stream results from search_with_filters
-            # All results at this point have already passed the filters
+            # All results at this point have already passed the filters (except exclude_inactive)
             result_count = 0
-            for result in service.api.search_with_filters(mock_args):
+            for result in service.api.search_with_filters(all_results_mock_args):
                 # Skip None results (generator may yield None when no results found)
                 if result is None:
                     continue
@@ -401,8 +533,11 @@ def search_drugs_stream(request):
                 print(f"RxCUI {rxcui} search returned no filtered results, trying drug_name '{mock_args.drug_name}' as fallback", file=sys.stderr)
                 # Create new mock_args with drug_name instead of RxCUI
                 fallback_mock_args = service._create_mock_args(
-                    drug_name=mock_args.drug_name,
+                    drug_name=mock_args.drug_name if hasattr(mock_args, 'drug_name') else None,
                     rxcui=None,
+                    ndc=None,
+                    setid=None,
+                    drug_class_code=None,
                     page=page,
                     pagesize=pagesize,
                     route=route,
@@ -414,8 +549,23 @@ def search_drugs_stream(request):
                     exclude_inactive=exclude_inactive
                 )
                 
+                # Create modified fallback args without exclude_inactive to get ALL results
+                fallback_all_results_args = service._create_mock_args(
+                    drug_name=fallback_mock_args.drug_name,
+                    rxcui=None,
+                    page=page,
+                    pagesize=pagesize,
+                    route=route,
+                    form=form,
+                    only_active=only_active,
+                    include_active=include_active,
+                    exclude_active=exclude_active,
+                    include_inactive=include_inactive,
+                    exclude_inactive=None  # Don't filter - we want ALL results to categorize
+                )
+                
                 # Try drug_name search
-                for result in service.api.search_with_filters(fallback_mock_args):
+                for result in service.api.search_with_filters(fallback_all_results_args):
                     if result is None or not isinstance(result, dict):
                         continue
                     
