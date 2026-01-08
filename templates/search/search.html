@@ -582,20 +582,29 @@ function searchApp() {
         },
         
         get filteredExcipientCategories() {
+            let categories = {};
+            
             if (!this.excipientSearchQuery.trim()) {
-                return this.excipientCategories;
+                categories = this.excipientCategories;
+            } else {
+                const query = this.excipientSearchQuery.toLowerCase();
+                Object.keys(this.excipientCategories).forEach(category => {
+                    const matchingExcipients = (this.excipientCategories[category] || []).filter(exc => 
+                        exc.toLowerCase().includes(query) || category.toLowerCase().includes(query)
+                    );
+                    if (matchingExcipients.length > 0 || category.toLowerCase().includes(query)) {
+                        categories[category] = matchingExcipients.length > 0 ? matchingExcipients : this.excipientCategories[category];
+                    }
+                });
             }
-            const query = this.excipientSearchQuery.toLowerCase();
-            const filtered = {};
-            Object.keys(this.excipientCategories).forEach(category => {
-                const matchingExcipients = (this.excipientCategories[category] || []).filter(exc => 
-                    exc.toLowerCase().includes(query) || category.toLowerCase().includes(query)
-                );
-                if (matchingExcipients.length > 0 || category.toLowerCase().includes(query)) {
-                    filtered[category] = matchingExcipients.length > 0 ? matchingExcipients : this.excipientCategories[category];
-                }
+            
+            // Sort categories alphabetically and return as a new object
+            const sortedKeys = Object.keys(categories).sort((a, b) => a.localeCompare(b));
+            const sortedCategories = {};
+            sortedKeys.forEach(key => {
+                sortedCategories[key] = categories[key];
             });
-            return filtered;
+            return sortedCategories;
         },
         
         filterExcipientCategories() {
