@@ -182,35 +182,36 @@
     
     <!-- Results Container -->
     <div x-show="hasSearched && (hasResults || (!searching && resultsMetadata.total === 0))" class="space-y-6">
-        <!-- Results Header with Metrics and Filters -->
-        <div x-show="hasResults" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6">
-            <!-- Search Query Display -->
-            <div class="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-                <h2 class="text-lg font-semibold text-blue-700 dark:text-blue-400">
-                    SEARCH RESULTS FOR: <span x-text="selectedDrug || drugQuery"></span> 
-                    (<span x-text="resultsMetadata.total"></span> results)
+        <!-- Results Header - DailyMed Style -->
+        <div x-show="hasResults" class="bg-white dark:bg-gray-800">
+            <!-- Search Query Display - Light Blue Banner -->
+            <div class="bg-blue-50 dark:bg-blue-900/30 px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <h2 class="text-base font-semibold text-gray-700 dark:text-gray-300">
+                    SEARCH RESULTS FOR: <span class="text-blue-700 dark:text-blue-400 font-bold" x-text="selectedDrug || drugQuery"></span> 
+                    <span class="text-gray-500 dark:text-gray-400">(<span x-text="resultsMetadata.total"></span> results)</span>
                 </h2>
             </div>
 
-            <!-- Metrics -->
-            <div class="grid grid-cols-3 gap-4 mb-4">
-                <div class="text-center p-3 bg-gray-50 dark:bg-gray-900 rounded">
-                    <div class="text-2xl font-bold text-gray-900 dark:text-white" x-text="resultsMetadata.total"></div>
-                    <div class="text-sm text-gray-600 dark:text-gray-400">Total # drugs found</div>
-                </div>
-                <div class="text-center p-3 bg-green-50 dark:bg-green-900/30 rounded">
-                    <div class="text-2xl font-bold text-green-700 dark:text-green-400" x-text="resultsMetadata.total_free"></div>
-                    <div class="text-sm text-gray-600 dark:text-gray-400"># without excipient(s)</div>
-                </div>
-                <div class="text-center p-3 bg-yellow-50 dark:bg-yellow-900/30 rounded">
-                    <div class="text-2xl font-bold text-yellow-700 dark:text-yellow-400" x-text="resultsMetadata.total_with"></div>
-                    <div class="text-sm text-gray-600 dark:text-gray-400"># with excipient(s)</div>
+            <!-- Metrics Section -->
+            <div class="px-6 py-4 border-b border-gray-200 dark:border-gray-700">
+                <div class="grid grid-cols-3 gap-4">
+                    <div class="text-center p-3 bg-gray-50 dark:bg-gray-900 rounded">
+                        <div class="text-2xl font-bold text-gray-900 dark:text-white" x-text="resultsMetadata.total"></div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400">Total # drugs found</div>
+                    </div>
+                    <div class="text-center p-3 bg-green-50 dark:bg-green-900/30 rounded">
+                        <div class="text-2xl font-bold text-green-700 dark:text-green-400" x-text="resultsMetadata.total_free"></div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400"># without excipient(s)</div>
+                    </div>
+                    <div class="text-center p-3 bg-yellow-50 dark:bg-yellow-900/30 rounded">
+                        <div class="text-2xl font-bold text-yellow-700 dark:text-yellow-400" x-text="resultsMetadata.total_with"></div>
+                        <div class="text-sm text-gray-600 dark:text-gray-400"># with excipient(s)</div>
+                    </div>
                 </div>
             </div>
 
-            <!-- Filter and Sort Controls -->
-            <div class="flex flex-wrap items-center gap-4 mb-4">
-                <!-- Filter: Show All / Show Only Without Excipients -->
+            <!-- Filter Section -->
+            <div class="px-6 py-3 border-b border-gray-200 dark:border-gray-700">
                 <div class="flex items-center space-x-4">
                     <span class="text-sm font-medium text-gray-700 dark:text-gray-300">Filter:</span>
                     <label class="flex items-center space-x-2">
@@ -232,14 +233,17 @@
                         <span class="text-sm text-gray-700 dark:text-gray-300">Show only drugs without excipients</span>
                     </label>
                 </div>
+            </div>
 
-                <!-- Sort Dropdown -->
+            <!-- Controls Bar - DailyMed Style -->
+            <div class="px-6 py-3 border-b border-gray-200 dark:border-gray-700 flex flex-wrap items-center justify-between gap-4">
+                <!-- Left: Sort Dropdown -->
                 <div class="flex items-center space-x-2">
-                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Sort By:</label>
+                    <label class="text-sm text-gray-700 dark:text-gray-300">Sort By</label>
                     <select
                         x-model="sortBy"
                         @change="sortResults()"
-                        class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        class="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
                     >
                         <option value="relevance">Relevance</option>
                         <option value="name">Drug Name</option>
@@ -247,212 +251,250 @@
                     </select>
                 </div>
 
-                <!-- Results Per Page -->
-                <div class="flex items-center space-x-2">
-                    <label class="text-sm font-medium text-gray-700 dark:text-gray-300">Results per page:</label>
-                    <select
-                        x-model="itemsPerPage"
-                        @change="currentPage = 1"
-                        class="px-3 py-2 border border-gray-300 dark:border-gray-600 rounded-md bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    >
-                        <option value="10">10</option>
-                        <option value="25">25</option>
-                        <option value="50">50</option>
-                        <option value="100">100</option>
-                        <option value="200">200</option>
-                    </select>
+                <!-- Right: Pagination and Results Per Page -->
+                <div class="flex items-center space-x-4">
+                    <!-- Pagination -->
+                    <div class="flex items-center space-x-2">
+                        <button
+                            @click="currentPage = Math.max(1, currentPage - 1)"
+                            :disabled="currentPage === 1"
+                            class="px-2 py-1 text-sm text-gray-700 dark:text-gray-300 hover:text-blue-600 disabled:text-gray-400 disabled:cursor-not-allowed"
+                        >
+                            &lt; previous
+                        </button>
+                        <span class="text-sm text-gray-700 dark:text-gray-300">
+                            page <input type="number" x-model="currentPage" @change="currentPage = Math.max(1, Math.min(currentPage, totalPages))" class="w-12 px-1 py-1 text-center border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm" /> of <span x-text="totalPages"></span>
+                        </span>
+                        <button
+                            @click="currentPage = Math.min(totalPages, currentPage + 1)"
+                            :disabled="currentPage === totalPages"
+                            class="px-2 py-1 text-sm text-gray-700 dark:text-gray-300 hover:text-blue-600 disabled:text-gray-400 disabled:cursor-not-allowed"
+                        >
+                            next &gt;
+                        </button>
+                    </div>
+
+                    <!-- Results Per Page -->
+                    <div class="flex items-center space-x-2">
+                        <select
+                            x-model="itemsPerPage"
+                            @change="currentPage = 1"
+                            class="px-2 py-1 border border-gray-300 dark:border-gray-600 rounded bg-white dark:bg-gray-700 text-gray-900 dark:text-white text-sm focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                        >
+                            <option value="10">10 results/pg</option>
+                            <option value="25">25 results/pg</option>
+                            <option value="50">50 results/pg</option>
+                            <option value="100">100 results/pg</option>
+                            <option value="200">200 results/pg</option>
+                        </select>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <!-- Section 1: Drugs Without Excipients -->
-        <div x-show="filteredResultsFree.length > 0">
-            <div class="bg-green-50 dark:bg-green-900/20 rounded-lg p-4 mb-4">
-                <h3 class="text-lg font-semibold text-green-800 dark:text-green-300 mb-2">
+        <!-- Section 1: Results Without Excipients -->
+        <div x-show="hasResults && filteredResultsFree.length > 0 && (resultsFilter === 'all' || resultsFilter === 'without')" class="bg-white dark:bg-gray-800">
+            <div class="px-6 py-4 border-b-2 border-green-500">
+                <h3 class="text-lg font-semibold text-green-800 dark:text-green-300">
                     Section 1: Drugs Without Excipients (<span x-text="resultsMetadata.total_free"></span>)
                 </h3>
-                <p class="text-sm text-green-700 dark:text-green-400">
-                    Based upon DailyMed results, these medications did not have the excipients you selected. 
-                    Click on "View on DailyMed" to verify on the NIH DailyMed website.
+                <p class="text-sm text-green-700 dark:text-green-400 mt-1">
+                    These medications did not contain any of the selected excipients.
                 </p>
             </div>
-            <div class="space-y-4">
+            <div class="space-y-6 px-6 py-4">
                 <template x-for="result in paginatedResultsFree" :key="result.set_id">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-green-500">
-                        <div class="flex justify-between items-start mb-4">
-                            <h4 class="text-xl font-semibold text-gray-900 dark:text-white" x-text="result.title"></h4>
-                            <a
-                                :href="result.dailymed_link"
-                                target="_blank"
-                                class="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                            >
-                                View on DailyMed →
-                            </a>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Dosage:</span>
-                                <span class="text-sm text-gray-900 dark:text-gray-100 ml-2" x-text="result.dosage"></span>
-                            </div>
-                            <div>
-                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Route:</span>
-                                <span class="text-sm text-gray-900 dark:text-gray-100 ml-2" x-text="result.route_code_display"></span>
-                            </div>
-                            <div>
-                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Packager:</span>
-                                <span class="text-sm text-gray-900 dark:text-gray-100 ml-2" x-text="result.packager"></span>
-                            </div>
-                            <div>
-                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Drug Type:</span>
-                                <span class="text-sm text-gray-900 dark:text-gray-100 ml-2" x-text="result.drug_type"></span>
-                            </div>
-                            <div>
-                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">NDC:</span>
-                                <div class="text-sm text-gray-900 dark:text-gray-100 ml-2">
-                                    <template x-if="result.ndc_count && result.ndc_count > 1">
-                                        <div>
-                                            <div class="font-medium mb-1">
-                                                <span x-text="result.ndc_count"></span> NDC codes:
-                                            </div>
-                                            <ul class="list-disc list-inside ml-2">
-                                                <template x-for="(ndc, idx) in result.ndcs" :key="idx">
-                                                    <li x-text="ndc"></li>
-                                                </template>
-                                            </ul>
-                                        </div>
-                                    </template>
-                                    <template x-if="!result.ndc_count || result.ndc_count === 1">
-                                        <span x-text="result.ndc || result.ndcs?.[0] || 'N/A'"></span>
-                                    </template>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                Active Ingredients:
-                            </h5>
-                            <ul x-show="result.active && Array.isArray(result.active) && result.active.length > 0" class="list-disc list-inside space-y-1 ml-4">
-                                <template x-for="(ing, index) in (result.active || [])" :key="index">
-                                    <li class="text-sm text-gray-700 dark:text-gray-300" x-show="ing && ing.name">
-                                        <span x-text="ing.name || 'Unknown'"></span>
-                                        <span class="text-gray-500 dark:text-gray-400" x-show="ing.strength" x-text="'(' + ing.strength + ')'"></span>
-                                    </li>
-                                </template>
-                            </ul>
-                            <p x-show="!result.active || !Array.isArray(result.active) || result.active.length === 0" class="text-sm text-gray-500 dark:text-gray-400">N/A</p>
-                        </div>
-                        
+                    <div class="pb-6 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
+                        <!-- Result Content -->
                         <div>
-                            <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                Inactive Ingredients:
-                            </h5>
-                            <ul x-show="result.inactive && Array.isArray(result.inactive) && result.inactive.length > 0" class="list-disc list-inside space-y-1 ml-4">
-                                <template x-for="(ing, index) in (result.inactive || [])" :key="index">
-                                    <li class="text-sm text-gray-700 dark:text-gray-300" x-text="ing"></li>
+                            <!-- Drug Name (Clickable Link) -->
+                            <h3 class="mb-2">
+                                <a 
+                                    :href="result.dailymed_link" 
+                                    target="_blank"
+                                    class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline text-base font-medium"
+                                    x-text="result.title"
+                                ></a>
+                            </h3>
+                            
+                            <!-- NDC Code(s) -->
+                            <div class="mb-2 text-sm">
+                                <span class="text-gray-700 dark:text-gray-300">NDC Code(s): </span>
+                                <template x-if="result.ndc_count && result.ndc_count > 1">
+                                    <span>
+                                        <template x-for="(ndc, idx) in result.ndcs.slice(0, 5)" :key="idx">
+                                            <a 
+                                                :href="'/api/search/?ndc=' + encodeURIComponent(ndc)"
+                                                class="text-blue-600 dark:text-blue-400 hover:underline"
+                                                x-text="ndc + (idx < Math.min(result.ndcs.length, 5) - 1 ? ', ' : '')"
+                                            ></a>
+                                        </template>
+                                        <template x-if="result.ndcs.length > 5">
+                                            <span>, <a href="#" class="text-blue-600 dark:text-blue-400 hover:underline">view more</a></span>
+                                        </template>
+                                    </span>
                                 </template>
-                            </ul>
-                            <p x-show="!result.inactive || !Array.isArray(result.inactive) || result.inactive.length === 0" class="text-sm text-gray-500 dark:text-gray-400">N/A</p>
+                                <template x-if="!result.ndc_count || result.ndc_count === 1">
+                                    <a 
+                                        :href="'/api/search/?ndc=' + encodeURIComponent(result.ndc || result.ndcs?.[0] || '')"
+                                        class="text-blue-600 dark:text-blue-400 hover:underline"
+                                        x-text="result.ndc || result.ndcs?.[0] || 'N/A'"
+                                    ></a>
+                                </template>
+                            </div>
+                            
+                            <!-- Packager -->
+                            <div class="mb-3 text-sm">
+                                <span class="text-gray-700 dark:text-gray-300">Packager: </span>
+                                <span class="text-gray-900 dark:text-gray-100" x-text="result.packager || 'N/A'"></span>
+                            </div>
+                            
+                            <!-- Active Ingredients -->
+                            <div class="mb-3 text-sm" x-show="result.active && Array.isArray(result.active) && result.active.length > 0">
+                                <span class="text-gray-700 dark:text-gray-300 font-medium">Active Ingredients: </span>
+                                <span class="text-gray-900 dark:text-gray-100">
+                                    <template x-for="(ing, index) in (result.active || [])" :key="index">
+                                        <span x-show="ing && ing.name">
+                                            <span x-text="ing.name || 'Unknown'"></span>
+                                            <span class="text-gray-500 dark:text-gray-400" x-show="ing.strength" x-text="' (' + ing.strength + ')'"></span>
+                                            <span x-show="index < (result.active || []).length - 1">, </span>
+                                        </span>
+                                    </template>
+                                </span>
+                            </div>
+                            
+                            <!-- Inactive Ingredients -->
+                            <div class="mb-3 text-sm" x-show="result.inactive && Array.isArray(result.inactive) && result.inactive.length > 0">
+                                <span class="text-gray-700 dark:text-gray-300 font-medium">Inactive Ingredients: </span>
+                                <span class="text-gray-900 dark:text-gray-100">
+                                    <template x-for="(ing, index) in (result.inactive || [])" :key="index">
+                                        <span>
+                                            <span x-text="ing"></span>
+                                            <span x-show="index < (result.inactive || []).length - 1">, </span>
+                                        </span>
+                                    </template>
+                                </span>
+                            </div>
+                            
+                            <!-- VIEW MORE Link -->
+                            <div>
+                                <a 
+                                    :href="result.dailymed_link"
+                                    target="_blank"
+                                    class="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline text-sm font-medium"
+                                >
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                    </svg>
+                                    VIEW MORE
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </template>
             </div>
         </div>
         
-        <!-- Section 2: All Remaining Drugs (With Excipients) -->
-        <div x-show="filteredResultsWith.length > 0 && resultsFilter === 'all'">
-            <div class="bg-yellow-50 dark:bg-yellow-900/20 rounded-lg p-4 mb-4">
-                <h3 class="text-lg font-semibold text-yellow-800 dark:text-yellow-300 mb-2">
-                    Section 2: All Remaining Drugs (<span x-text="resultsMetadata.total_with"></span>)
+        <!-- Section 2: Results With Excipients -->
+        <div x-show="hasResults && filteredResultsWith.length > 0 && resultsFilter === 'all'" class="bg-white dark:bg-gray-800">
+            <div class="px-6 py-4 border-b-2 border-yellow-500">
+                <h3 class="text-lg font-semibold text-yellow-800 dark:text-yellow-300">
+                    Section 2: Drugs With Excipients (<span x-text="resultsMetadata.total_with"></span>)
                 </h3>
-                <p class="text-sm text-yellow-700 dark:text-yellow-400">
-                    One or more of your selected excipients were found in these medications. 
-                    Matching excipients are highlighted below.
+                <p class="text-sm text-yellow-700 dark:text-yellow-400 mt-1">
+                    One or more of the selected excipients were found in these medications. Matching excipients are highlighted below.
                 </p>
             </div>
-            <div class="space-y-4">
+            <div class="space-y-6 px-6 py-4">
                 <template x-for="result in paginatedResultsWith" :key="result.set_id">
-                    <div class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 border-l-4 border-yellow-500">
-                        <div class="flex justify-between items-start mb-4">
-                            <h4 class="text-xl font-semibold text-gray-900 dark:text-white" x-text="result.title"></h4>
-                            <a
-                                :href="result.dailymed_link"
-                                target="_blank"
-                                class="text-blue-600 hover:text-blue-800 text-sm font-medium"
-                            >
-                                View on DailyMed →
-                            </a>
-                        </div>
-                        
-                        <div class="grid grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Dosage:</span>
-                                <span class="text-sm text-gray-900 dark:text-gray-100 ml-2" x-text="result.dosage"></span>
-                            </div>
-                            <div>
-                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Route:</span>
-                                <span class="text-sm text-gray-900 dark:text-gray-100 ml-2" x-text="result.route_code_display"></span>
-                            </div>
-                            <div>
-                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Packager:</span>
-                                <span class="text-sm text-gray-900 dark:text-gray-100 ml-2" x-text="result.packager"></span>
-                            </div>
-                            <div>
-                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">Drug Type:</span>
-                                <span class="text-sm text-gray-900 dark:text-gray-100 ml-2" x-text="result.drug_type"></span>
-                            </div>
-                            <div>
-                                <span class="text-sm font-medium text-gray-600 dark:text-gray-400">NDC:</span>
-                                <div class="text-sm text-gray-900 dark:text-gray-100 ml-2">
-                                    <template x-if="result.ndc_count && result.ndc_count > 1">
-                                        <div>
-                                            <div class="font-medium mb-1">
-                                                <span x-text="result.ndc_count"></span> NDC codes:
-                                            </div>
-                                            <ul class="list-disc list-inside ml-2">
-                                                <template x-for="(ndc, idx) in result.ndcs" :key="idx">
-                                                    <li x-text="ndc"></li>
-                                                </template>
-                                            </ul>
-                                        </div>
-                                    </template>
-                                    <template x-if="!result.ndc_count || result.ndc_count === 1">
-                                        <span x-text="result.ndc || result.ndcs?.[0] || 'N/A'"></span>
-                                    </template>
-                                </div>
-                            </div>
-                        </div>
-                        
-                        <div class="mb-4">
-                            <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                Active Ingredients:
-                            </h5>
-                            <ul x-show="result.active && Array.isArray(result.active) && result.active.length > 0" class="list-disc list-inside space-y-1 ml-4">
-                                <template x-for="(ing, index) in (result.active || [])" :key="index">
-                                    <li class="text-sm text-gray-700 dark:text-gray-300" x-show="ing && ing.name">
-                                        <span x-text="ing.name || 'Unknown'"></span>
-                                        <span class="text-gray-500 dark:text-gray-400" x-show="ing.strength" x-text="'(' + ing.strength + ')'"></span>
-                                    </li>
-                                </template>
-                            </ul>
-                            <p x-show="!result.active || !Array.isArray(result.active) || result.active.length === 0" class="text-sm text-gray-500 dark:text-gray-400">N/A</p>
-                        </div>
-                        
+                    <div class="pb-6 border-b border-gray-200 dark:border-gray-700 last:border-b-0">
+                        <!-- Result Content -->
                         <div>
-                            <h5 class="text-sm font-semibold text-gray-700 dark:text-gray-300 mb-2">
-                                Inactive Ingredients:
-                            </h5>
-                            <ul x-show="result.inactive && Array.isArray(result.inactive) && result.inactive.length > 0" class="list-disc list-inside space-y-1 ml-4">
-                                <template x-for="(ing, index) in (result.inactive || [])" :key="index">
-                                    <li 
-                                        class="text-sm"
-                                        :class="isHighlightedExcipient(ing) ? 'font-bold text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 px-1 rounded' : 'text-gray-700 dark:text-gray-300'"
-                                        x-text="ing"
-                                    ></li>
+                            <!-- Drug Name (Clickable Link) -->
+                            <h3 class="mb-2">
+                                <a 
+                                    :href="result.dailymed_link" 
+                                    target="_blank"
+                                    class="text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline text-base font-medium"
+                                    x-text="result.title"
+                                ></a>
+                            </h3>
+                            
+                            <!-- NDC Code(s) -->
+                            <div class="mb-2 text-sm">
+                                <span class="text-gray-700 dark:text-gray-300">NDC Code(s): </span>
+                                <template x-if="result.ndc_count && result.ndc_count > 1">
+                                    <span>
+                                        <template x-for="(ndc, idx) in result.ndcs.slice(0, 5)" :key="idx">
+                                            <a 
+                                                :href="'/api/search/?ndc=' + encodeURIComponent(ndc)"
+                                                class="text-blue-600 dark:text-blue-400 hover:underline"
+                                                x-text="ndc + (idx < Math.min(result.ndcs.length, 5) - 1 ? ', ' : '')"
+                                            ></a>
+                                        </template>
+                                        <template x-if="result.ndcs.length > 5">
+                                            <span>, <a href="#" class="text-blue-600 dark:text-blue-400 hover:underline">view more</a></span>
+                                        </template>
+                                    </span>
                                 </template>
-                            </ul>
-                            <p x-show="!result.inactive || !Array.isArray(result.inactive) || result.inactive.length === 0" class="text-sm text-gray-500 dark:text-gray-400">N/A</p>
+                                <template x-if="!result.ndc_count || result.ndc_count === 1">
+                                    <a 
+                                        :href="'/api/search/?ndc=' + encodeURIComponent(result.ndc || result.ndcs?.[0] || '')"
+                                        class="text-blue-600 dark:text-blue-400 hover:underline"
+                                        x-text="result.ndc || result.ndcs?.[0] || 'N/A'"
+                                    ></a>
+                                </template>
+                            </div>
+                            
+                            <!-- Packager -->
+                            <div class="mb-3 text-sm">
+                                <span class="text-gray-700 dark:text-gray-300">Packager: </span>
+                                <span class="text-gray-900 dark:text-gray-100" x-text="result.packager || 'N/A'"></span>
+                            </div>
+                            
+                            <!-- Active Ingredients -->
+                            <div class="mb-3 text-sm" x-show="result.active && Array.isArray(result.active) && result.active.length > 0">
+                                <span class="text-gray-700 dark:text-gray-300 font-medium">Active Ingredients: </span>
+                                <span class="text-gray-900 dark:text-gray-100">
+                                    <template x-for="(ing, index) in (result.active || [])" :key="index">
+                                        <span x-show="ing && ing.name">
+                                            <span x-text="ing.name || 'Unknown'"></span>
+                                            <span class="text-gray-500 dark:text-gray-400" x-show="ing.strength" x-text="' (' + ing.strength + ')'"></span>
+                                            <span x-show="index < (result.active || []).length - 1">, </span>
+                                        </span>
+                                    </template>
+                                </span>
+                            </div>
+                            
+                            <!-- Inactive Ingredients (with highlighting) -->
+                            <div class="mb-3 text-sm" x-show="result.inactive && Array.isArray(result.inactive) && result.inactive.length > 0">
+                                <span class="text-gray-700 dark:text-gray-300 font-medium">Inactive Ingredients: </span>
+                                <span class="text-gray-900 dark:text-gray-100">
+                                    <template x-for="(ing, index) in (result.inactive || [])" :key="index">
+                                        <span>
+                                            <span 
+                                                :class="isHighlightedExcipient(ing) ? 'font-bold text-yellow-700 dark:text-yellow-400 bg-yellow-100 dark:bg-yellow-900/30 px-1 rounded' : ''"
+                                                x-text="ing"
+                                            ></span>
+                                            <span x-show="index < (result.inactive || []).length - 1">, </span>
+                                        </span>
+                                    </template>
+                                </span>
+                            </div>
+                            
+                            <!-- VIEW MORE Link -->
+                            <div>
+                                <a 
+                                    :href="result.dailymed_link"
+                                    target="_blank"
+                                    class="inline-flex items-center text-blue-600 dark:text-blue-400 hover:text-blue-800 dark:hover:text-blue-300 hover:underline text-sm font-medium"
+                                >
+                                    <svg class="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                    </svg>
+                                    VIEW MORE
+                                </a>
+                            </div>
                         </div>
                     </div>
                 </template>
@@ -460,36 +502,8 @@
         </div>
         
         <!-- No Results -->
-        <div x-show="hasSearched && !searching && resultsMetadata.total === 0" class="bg-white dark:bg-gray-800 rounded-lg shadow p-6 text-center">
+        <div x-show="hasSearched && !searching && resultsMetadata.total === 0" class="bg-white dark:bg-gray-800 px-6 py-8 text-center">
             <p class="text-gray-600 dark:text-gray-400">No results found matching your criteria.</p>
-        </div>
-        
-        <!-- Pagination Controls -->
-        <div x-show="hasResults && totalPages > 1" class="bg-white dark:bg-gray-800 rounded-lg shadow p-4">
-            <div class="flex items-center justify-between">
-                <div class="flex items-center space-x-2">
-                    <button
-                        @click="previousPage()"
-                        :disabled="currentPage === 1"
-                        class="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                    >
-                        &lt; Previous
-                    </button>
-                    <span class="text-sm text-gray-700 dark:text-gray-300">
-                        Page <span x-text="currentPage"></span> of <span x-text="totalPages"></span>
-                    </span>
-                    <button
-                        @click="nextPage()"
-                        :disabled="currentPage === totalPages"
-                        class="px-4 py-2 bg-blue-600 dark:bg-blue-700 text-white rounded-md hover:bg-blue-700 dark:hover:bg-blue-600 disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed transition-colors"
-                    >
-                        Next &gt;
-                    </button>
-                </div>
-                <div class="text-sm text-gray-600 dark:text-gray-400">
-                    <span x-text="itemsPerPage"></span> results/page
-                </div>
-            </div>
         </div>
     </div>
 </div>
@@ -1053,11 +1067,25 @@ function searchApp() {
         },
         
         get paginatedResultsFree() {
-            return this.paginatedResults.filter(r => r.category === 'free');
+            if (this.resultsFilter === 'without') {
+                // When filtering to "without", paginate only free results
+                const start = (this.currentPage - 1) * this.itemsPerPage;
+                const end = start + this.itemsPerPage;
+                return this.filteredResultsFree.slice(start, end);
+            } else {
+                // When showing "all", show all free results (no pagination - show complete section)
+                return this.filteredResultsFree;
+            }
         },
         
         get paginatedResultsWith() {
-            return this.paginatedResults.filter(r => r.category === 'with');
+            if (this.resultsFilter === 'all') {
+                // When showing "all", show all with results (no pagination - show complete section)
+                return this.filteredResultsWith;
+            } else {
+                // When filtering to "without", don't show with results
+                return [];
+            }
         },
         
         get totalPages() {

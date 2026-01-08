@@ -769,6 +769,9 @@ class DailyMedAPI:
         # Extract arguments
         drug_name = getattr(args, 'drug_name', None)
         rxcui = getattr(args, 'rxcui', None)
+        ndc = getattr(args, 'ndc', None)
+        setid = getattr(args, 'setid', None)
+        drug_class_code = getattr(args, 'drug_class_code', None)
         
         # Max results per request (API usually limits this to 100 regardless of what we ask for)
         # We will loop until we have everything.
@@ -785,8 +788,22 @@ class DailyMedAPI:
         include_inactive = args.include_inactive
         exclude_inactive = args.exclude_inactive
 
-        search_term = rxcui if rxcui else drug_name
-        search_type = "RxCUI" if rxcui else "drug name"
+        # Determine search type and term for logging
+        if setid:
+            search_term = setid
+            search_type = "Set ID"
+        elif ndc:
+            search_term = ndc
+            search_type = "NDC"
+        elif rxcui:
+            search_term = rxcui
+            search_type = "RxCUI"
+        elif drug_class_code:
+            search_term = drug_class_code
+            search_type = "Drug Class Code"
+        else:
+            search_term = drug_name
+            search_type = "drug name"
         
         print(f"Starting advanced search for {search_type} '{search_term}'...")
 
@@ -805,9 +822,15 @@ class DailyMedAPI:
         # --- PAGINATION LOOP ---
         while True:
             try:
-                # Fetch a page of results
-                if rxcui:
+                # Fetch a page of results (priority: setid > ndc > rxcui > drug_class_code > drug_name)
+                if setid:
+                    response = self.search_spls(setid=setid, pagesize=request_pagesize, page=current_page)
+                elif ndc:
+                    response = self.search_spls(ndc=ndc, pagesize=request_pagesize, page=current_page)
+                elif rxcui:
                     response = self.search_spls(rxcui=rxcui, pagesize=request_pagesize, page=current_page)
+                elif drug_class_code:
+                    response = self.search_spls(drug_class_code=drug_class_code, pagesize=request_pagesize, page=current_page)
                 elif drug_name:
                     response = self.search_spls(drug_name=drug_name, pagesize=request_pagesize, page=current_page)
                 else:
